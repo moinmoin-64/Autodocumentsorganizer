@@ -79,9 +79,46 @@ def upload_file():
 def process_uploaded_file(filepath: str):
     """
     Startet Verarbeitung einer hochgeladenen Datei
-    
-    Args:
-        filepath: Pfad zur Datei
+    """
+    try:
+        if not Path(filepath).exists():
+            return jsonify({'error': 'File not found'}), 404
+
+        # Prüfe auf Async-Flag (optional via Query Param oder Config)
+        use_async = request.args.get('async', 'false').lower() == 'true'
+        
+        # Versuche Async (Celery)
+        if use_async:
+            try:
+                from app.tasks import process_document_async
+                task = process_document_async.delay(filepath)
+                return jsonify({
+                    'success': True,
+                    'status': 'processing_async',
+                    'task_id': task.id,
+                    'message': 'Verarbeitung im Hintergrund gestartet'
+                })
+            except ImportError:
+                logger.warning("Celery nicht verfügbar, Fallback auf synchron")
+            except Exception as e:
+                logger.error(f"Async Start fehlgeschlagen: {e}")
+
+        # Synchron (Fallback oder Default)
+        result = process_file_logic(filepath)
+        
+        if result.get('error'):
+            return jsonify(result), 500
+            
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Fehler bei Verarbeitung: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+def process_file_logic(filepath: str) -> dict:
+    """
+    Zentrale Verarbeitungslogik (wird auch von Celery genutzt)
     """
     try:
         from app.document_processor import DocumentProcessor
@@ -90,9 +127,6 @@ def process_uploaded_file(filepath: str):
         from app.data_extractor import DataExtractor
         from app.database import Database
         
-        if not Path(filepath).exists():
-            return jsonify({'error': 'File not found'}), 404
-        
         # Initialisiere Komponenten
         processor = DocumentProcessor()
         categorizer = DocumentCategorizer()
@@ -100,8 +134,7 @@ def process_uploaded_file(filepath: str):
         extractor = DataExtractor()
         db = Database()
         
-        # Verarbeite
-        logger.info(f"Verarbeite hochgeladene Datei: {filepath}")
+        logger.info(f"Verarbeite Datei (Logic): {filepath}")
         
         # 0. Duplikat-Check (Hash)
         import hashlib
@@ -114,24 +147,23 @@ def process_uploaded_file(filepath: str):
         existing_id = db.check_duplicate(content_hash)
         if existing_id:
             logger.warning(f"Duplikat erkannt: {filepath} -> ID {existing_id}")
-            # Lösche Temp-Datei
             try:
                 Path(filepath).unlink()
             except Exception as e:
                 logger.warning(f"Konnte Temp-Datei nicht löschen {filepath}: {e}")
-            return jsonify({
+            return {
                 'success': True,
                 'duplicate': True,
                 'document_id': existing_id,
                 'message': 'Dokument existiert bereits'
-            })
+            }
         
         # 1. OCR
         document_data = processor.process_document(filepath)
         document_data['content_hash'] = content_hash
         
         if not document_data or not document_data.get('text'):
-            return jsonify({'error': 'Could not extract text from document'}), 400
+            return {'error': 'Could not extract text from document'}
         
         # 2. Kategorisierung
         main_category, sub_category, confidence = categorizer.categorize(document_data)
@@ -152,7 +184,7 @@ def process_uploaded_file(filepath: str):
         )
         
         if not saved_path:
-            return jsonify({'error': 'Failed to store document'}), 500
+            return {'error': 'Failed to store document'}
         
         # 6. Datenbank
         doc_id = db.add_document(
@@ -163,6 +195,13 @@ def process_uploaded_file(filepath: str):
             date_document=document_date
         )
         
+        # Metrics update
+        try:
+            from app.metrics import DOCUMENT_PROCESSED_TOTAL
+            DOCUMENT_PROCESSED_TOTAL.labels(status='success', category=main_category).inc()
+        except:
+            pass
+        
         # 7. CSV-Extraktion
         year = document_date.year if document_date else datetime.now().year
         extractor.extract_and_save(
@@ -172,21 +211,70 @@ def process_uploaded_file(filepath: str):
             file_path=saved_path
         )
         
+        # 8. Auto-Tagging
+        try:
+            from app.auto_tagger import AutoTagger
+            auto_tagger = AutoTagger()
+            
+            auto_tags = auto_tagger.generate_tags(
+                text=document_data.get('text', ''),
+                category=main_category,
+                metadata={
+                    'date_document': document_date,
+                    'amount': document_data.get('amounts', [None])[0]
+                }
+            )
+            
+            for tag in auto_tags:
+                db.add_tag(doc_id, tag)
+            
+            logger.info(f"Auto-Tagging: {len(auto_tags)} Tags generiert für Dokument {doc_id}")
+            
+        except Exception as e:
+            logger.warning(f"Auto-Tagging fehlgeschlagen: {e}")
+
+        # 9. Semantic Search & Duplicates
+        try:
+            from app.semantic_search import SemanticSearch
+            semantic = SemanticSearch()
+            
+            if semantic.enabled and document_data.get('text'):
+                # Embedding generieren
+                embedding = semantic.generate_embedding(document_data['text'])
+                
+                if embedding:
+                    # Check auf semantische Duplikate
+                    all_embeddings = db.get_all_embeddings()
+                    duplicates = semantic.find_duplicates(embedding, all_embeddings)
+                    
+                    if duplicates:
+                        best_match_id, score = duplicates[0]
+                        logger.warning(f"Semantisches Duplikat gefunden! Ähnlichkeit: {score:.2f} mit Doc ID {best_match_id}")
+                        # Wir speichern es trotzdem, aber loggen es. 
+                        # Man könnte hier auch ein Flag in der DB setzen.
+                        db.add_tag(doc_id, "duplicate_candidate")
+                    
+                    # Embedding speichern
+                    db.save_embedding(doc_id, embedding)
+                    
+        except Exception as e:
+            logger.warning(f"Semantic Search fehlgeschlagen: {e}")
+        
         # Lösche temporäre Datei
         try:
             Path(filepath).unlink()
         except Exception as e:
             logger.warning(f"Konnte Temp-Datei nicht löschen {filepath}: {e}")
         
-        return jsonify({
+        return {
             'success': True,
             'document_id': doc_id,
             'category': main_category,
             'subcategory': sub_category,
             'confidence': confidence,
             'filepath': saved_path
-        })
+        }
         
     except Exception as e:
-        logger.error(f"Fehler bei Verarbeitung: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Logic Error: {e}")
+        return {'error': str(e)}

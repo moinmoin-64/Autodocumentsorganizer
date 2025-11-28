@@ -31,9 +31,14 @@ apt-get install -y sane sane-utils libsane-dev
 apt-get install -y hplip hplip-gui  # HP Scanner Support
 
 echo ""
-echo "=== Schritt 4: OCR-Engine (Tesseract) ==="
-apt-get install -y tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
-apt-get install -y poppler-utils  # Für PDF2Image
+echo "=== Schritt 4: System-Abhängigkeiten & Redis ==="
+echo "Installiere System-Pakete..."
+apt-get update
+apt-get install -y tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng imagemagick poppler-utils libgl1-mesa-glx libglib2.0-0 redis-server
+
+# Redis starten
+systemctl enable redis-server
+systemctl start redis-server
 
 echo ""
 echo "=== Schritt 5: Libraries ==="
@@ -55,11 +60,13 @@ echo ""
 echo "=== Schritt 8: Python Packages ==="
 pip install --upgrade pip
 pip install -r requirements.txt
+pip install opencv-python==4.8.1.78
+pip install prometheus-client==0.19.0
 
 echo ""
 echo "=== Schritt 9: Ollama Model Download ==="
-echo "Lade TinyLlama Model herunter (ca. 600MB)..."
-ollama pull tinyllama
+echo "Lade Quantized Qwen2.5 Model herunter (ca. 4GB)..."
+ollama pull qwen2.5:7b-q4_K_M
 
 # Alternative: DeepSeek
 # ollama pull deepseek-coder:1.3b

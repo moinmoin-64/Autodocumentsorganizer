@@ -44,9 +44,46 @@ class DocumentProcessor:
         # Tesseract Sprachen
         self.tesseract_lang = '+'.join(self.ocr_config['languages'])
         
+        # Image Preprocessor für bessere OCR-Genauigkeit
+        try:
+            from app.image_preprocessor import ImagePreprocessor
+            self.preprocessor = ImagePreprocessor()
+            self.use_preprocessing = True
+            logger.info("Image Preprocessor aktiviert")
+        except Exception as e:
+            logger.warning(f"Image Preprocessor nicht verfügbar: {e}")
+            self.preprocessor = None
+            self.use_preprocessing = False
+        
+        # Image Preprocessor für bessere OCR-Genauigkeit
+        try:
+            from app.image_preprocessor import ImagePreprocessor
+            self.preprocessor = ImagePreprocessor()
+            self.use_preprocessing = True
+            logger.info("Image Preprocessor aktiviert")
+        except Exception as e:
+            logger.warning(f"Image Preprocessor nicht verfügbar: {e}")
+            self.preprocessor = None
+            self.use_preprocessing = False
+
     def process_document(self, file_path: str) -> Dict:
         """
         Verarbeitet ein Dokument komplett
+        """
+        # Lazy Import um Zyklen zu vermeiden
+        from app.metrics import PROCESSING_DURATION_SECONDS, DOCUMENT_PROCESSED_TOTAL
+        
+        start_time = datetime.now()
+        try:
+            with PROCESSING_DURATION_SECONDS.labels(stage='total').time():
+                return self._process_document_internal(file_path)
+        except Exception as e:
+            DOCUMENT_PROCESSED_TOTAL.labels(status='error', category='unknown').inc()
+            raise e
+
+    def _process_document_internal(self, file_path: str) -> Dict:
+        """
+        Interne Verarbeitungslogik
         
         Args:
             file_path: Pfad zum Dokument
@@ -215,16 +252,31 @@ class DocumentProcessor:
             return ""
     
     def _extract_text_from_image(self, image_path: str) -> str:
-        """OCR auf Bild"""
+        """OCR auf Bild (mit optionalem Pre-Processing)"""
         try:
-            with Image.open(image_path) as image:
-                # Tesseract OCR
-                custom_config = f'--oem 3 --psm 3'
-                text = pytesseract.image_to_string(
-                    image,
-                    lang=self.tesseract_lang,
-                    config=custom_config
-                )
+            # Image Pre-Processing für bessere OCR-Genauigkeit
+            processed_path = image_path
+            if self.use_preprocessing and self.preprocessor:
+                try:
+                    processed_path = self.preprocessor.enhance(image_path)
+                    logger.debug(f"Image enhanced: {processed_path}")
+                except Exception as e:
+                    logger.warning(f"Image preprocessing failed, using original: {e}")
+                    processed_path = image_path
+            
+            with Image.open(processed_path) as image:
+                # OCR Ensemble nutzen
+                from app.metrics import OCR_DURATION_SECONDS, OCR_REQUESTS_TOTAL
+                
+                OCR_REQUESTS_TOTAL.labels(engine='ensemble', language=self.tesseract_lang).inc()
+                
+                with OCR_DURATION_SECONDS.observe():
+                    # Initialisiere Ensemble (Lazy Loading)
+                    if not hasattr(self, 'ocr_ensemble'):
+                        from app.ocr_ensemble import OCREnsemble
+                        self.ocr_ensemble = OCREnsemble(self.config)
+                    
+                    text = self.ocr_ensemble.extract_text(processed_path)
                 
                 return text.strip()
             

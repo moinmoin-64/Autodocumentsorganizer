@@ -296,23 +296,56 @@ async function loadInsurances() {
     }
 }
 
-// === Recent Documents ===
-async function loadRecentDocuments() {
+// === Recent Documents (Lazy Loading) ===
+let currentPage = 1;
+let isLoadingDocuments = false;
+let hasMoreDocuments = true;
+const DOCUMENTS_PER_PAGE = 9;
+
+async function loadRecentDocuments(reset = false) {
     const container = document.getElementById('recentDocuments');
-    container.innerHTML = getSkeletonCards(3);
+
+    if (reset) {
+        currentPage = 1;
+        hasMoreDocuments = true;
+        container.innerHTML = '';
+    }
+
+    if (isLoadingDocuments || !hasMoreDocuments) return;
+
+    isLoadingDocuments = true;
+
+    // Show skeleton only on first load
+    if (currentPage === 1) {
+        container.innerHTML = getSkeletonCards(3);
+    } else {
+        // Add loading indicator at bottom
+        const loader = document.createElement('div');
+        loader.id = 'scroll-loader';
+        loader.className = 'loading';
+        loader.textContent = 'Lade mehr...';
+        container.appendChild(loader);
+    }
 
     try {
-        const response = await fetch(`${API_BASE}/documents?limit=6`);
+        const response = await fetch(`${API_BASE}/documents?page=${currentPage}&limit=${DOCUMENTS_PER_PAGE}`);
         const data = await response.json();
 
         const documents = data.documents || [];
+        hasMoreDocuments = data.has_more;
 
-        if (documents.length === 0) {
+        // Remove skeletons/loader
+        if (currentPage === 1) {
+            container.innerHTML = '';
+        } else {
+            const loader = document.getElementById('scroll-loader');
+            if (loader) loader.remove();
+        }
+
+        if (documents.length === 0 && currentPage === 1) {
             container.innerHTML = '<div class="loading">Keine Dokumente gefunden</div>';
             return;
         }
-
-        container.innerHTML = '';
 
         documents.forEach(doc => {
             const card = document.createElement('div');
@@ -322,17 +355,50 @@ async function loadRecentDocuments() {
                 <p><strong>Kategorie:</strong> ${doc.category} / ${doc.subcategory || '-'}</p>
                 <p><strong>Datum:</strong> ${formatDate(doc.date_document)}</p>
                 <p class="summary">${doc.summary ? doc.summary.substring(0, 100) + '...' : ''}</p>
+                <div class="tags">
+                    ${(doc.tags || []).slice(0, 3).map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
             `;
 
             card.addEventListener('click', () => downloadDocument(doc.id));
-
             container.appendChild(card);
         });
 
+        currentPage++;
+        isLoadingDocuments = false;
+
+        // Setup Intersection Observer for Infinite Scroll
+        setupInfiniteScroll();
+
     } catch (error) {
         console.error('Error loading recent documents:', error);
-        container.innerHTML = '<div class="loading">Fehler beim Laden der Dokumente</div>';
+        if (currentPage === 1) {
+            container.innerHTML = '<div class="loading">Fehler beim Laden der Dokumente</div>';
+        }
+        isLoadingDocuments = false;
     }
+}
+
+function setupInfiniteScroll() {
+    // Remove old observer trigger if exists
+    const oldTrigger = document.getElementById('scroll-trigger');
+    if (oldTrigger) oldTrigger.remove();
+
+    if (!hasMoreDocuments) return;
+
+    const container = document.getElementById('recentDocuments');
+    const trigger = document.createElement('div');
+    trigger.id = 'scroll-trigger';
+    trigger.style.height = '20px';
+    container.appendChild(trigger);
+
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !isLoadingDocuments) {
+            loadRecentDocuments();
+        }
+    }, { rootMargin: '100px' });
+
+    observer.observe(trigger);
 }
 
 // === Search Function ===

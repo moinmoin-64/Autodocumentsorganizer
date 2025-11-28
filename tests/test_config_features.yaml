@@ -1,0 +1,6 @@
+
+system:
+  storage:
+    base_path: "C:/Users/olist/AppData/Local/Temp/tmp2tznlrzz/storage"
+database:
+  path: "C:/Users/olist/AppData/Local/Temp/tmp2tznlrzz/test_features.db"

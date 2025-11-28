@@ -46,9 +46,10 @@ ai:
   ollama:
     enabled: true
     url: "http://localhost:11434"
-    model: "qwen2.5:7b"  # Updated to Qwen2.5
+    model: "qwen2.5:7b-q4_K_M"  # Quantized version (4GB statt 14GB RAM)
     temperature: 0.1     # Lower temperature for factual tasks
-    max_tokens: 2048
+    num_ctx: 2048        # Reduced context window for performance
+    max_tokens: 500      # Max output tokens
 
 # Dokument-Kategorien (Hauptkategorien)
 categories:

@@ -26,6 +26,7 @@ from app.storage_manager import StorageManager
 from app.ollama_client import OllamaClient
 from app.upload_handler import upload_bp
 from app.auth import auth_bp, init_auth, login_required, current_user
+from app.health import health_bp
 
 import pandas as pd
 
@@ -44,6 +45,14 @@ config = None
 # Registriere Blueprints
 app.register_blueprint(upload_bp, url_prefix='/api')
 app.register_blueprint(auth_bp, url_prefix='/auth')
+app.register_blueprint(health_bp)
+
+# Metrics Endpoint
+@app.route('/metrics')
+def metrics():
+    from app.metrics import MetricsManager
+    return MetricsManager.get_metrics_response()
+
 
 
 def init_app(config_path: str = 'config.yaml'):
@@ -64,6 +73,14 @@ def init_app(config_path: str = 'config.yaml'):
     
     # Indexiere Dokumente
     _reindex_search()
+    
+    # Initiale Metriken
+    try:
+        from app.metrics import DB_DOCUMENT_COUNT
+        count = len(db.search_documents(limit=100000))
+        DB_DOCUMENT_COUNT.set(count)
+    except:
+        pass
     
     logger.info("Web Server initialisiert")
 
@@ -136,43 +153,40 @@ def get_year_stats(year: int):
 @login_required
 def list_documents():
     """
-    Liste aller Dokumente (mit Filtern)
+    Liste aller Dokumente (mit Filtern und Pagination)
     
     Query-Parameter:
         category: Kategorie-Filter
         year: Jahr-Filter
-        limit: Max. Anzahl (default: 100)
+        page: Seite (default: 1)
+        limit: Max. Anzahl (default: 50)
     """
     try:
         category = request.args.get('category')
         year_str = request.args.get('year')
-        limit = int(request.args.get('limit', 100))
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 50))
+        offset = (page - 1) * limit
         
-        # Date-Filter aus Jahr
-        start_date = None
-        end_date = None
-        if year_str:
-            year = int(year_str)
-            start_date = datetime(year, 1, 1)
-            end_date = datetime(year, 12, 31, 23, 59, 59)
+        year = int(year_str) if year_str else None
         
-        documents = db.search_documents(
+        # Nutze paginierte Suche
+        documents = db.search_documents_paginated(
+            offset=offset,
+            limit=limit,
             category=category,
-            start_date=start_date,
-            end_date=end_date,
-            limit=limit
+            year=year
         )
         
         return jsonify({
-            'count': len(documents),
-            'documents': documents
+            'documents': documents,
+            'page': page,
+            'limit': limit,
+            'has_more': len(documents) == limit
         })
     except Exception as e:
         logger.error(f"Fehler beim Laden der Dokumente: {e}")
         return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/search/advanced', methods=['POST'])
 @login_required
 def advanced_search():
     """

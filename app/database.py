@@ -5,7 +5,7 @@ Database - SQLite Datenbank für Metadaten
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 import sqlite3
 import json
 import yaml
@@ -107,11 +107,54 @@ class Database:
             )
         ''')
 
-        # Indexe
+        # Optimierte Indexe für häufige Queries
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_category ON documents(category)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_date ON documents(date_document)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_document ON tags(document_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(tag_name)")
+        
+        # Composite Indizes für Performance
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_docs_category_date 
+            ON documents(category, date_document)
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_docs_amount_date
+            ON documents(amount, date_document)
+            WHERE amount IS NOT NULL
+        """)
+        
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_tags_composite
+            ON tags(tag_name, document_id)
+        """)
+        
+        # Statistik-Cache-Tabelle
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS stats_cache (
+                cache_key TEXT PRIMARY KEY,
+                result TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Trigger für Auto-Invalidierung des Caches
+        cursor.execute('''
+            CREATE TRIGGER IF NOT EXISTS invalidate_stats_on_insert
+            AFTER INSERT ON documents
+            BEGIN
+                DELETE FROM stats_cache;
+            END
+        ''')
+        
+        cursor.execute('''
+            CREATE TRIGGER IF NOT EXISTS invalidate_stats_on_update
+            AFTER UPDATE ON documents
+            BEGIN
+                DELETE FROM stats_cache;
+            END
+        ''')
 
         conn.commit()
         conn.close()
@@ -305,6 +348,59 @@ class Database:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY date_document DESC LIMIT ?"
         params.append(limit)
+        
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        
+        # Convert rows...
+        result = []
+        for row in rows:
+            d = dict(row)
+            try:
+                d["keywords"] = json.loads(d["keywords"]) if d["keywords"] else []
+            except:
+                d["keywords"] = []
+            result.append(d)
+            
+        conn.close()
+        return result
+
+        # Filter-Logik (wiederverwendet)
+        if kwargs.get('category'):
+            where.append("category = ?")
+            params.append(kwargs['category'])
+            
+        if kwargs.get('year'):
+            where.append("strftime('%Y', date_document) = ?")
+            params.append(str(kwargs['year']))
+            
+        if kwargs.get('query'):
+            where.append("(full_text LIKE ? OR filename LIKE ?)")
+            q = f"%{kwargs['query']}%"
+            params.extend([q, q])
+
+        sql = "SELECT * FROM documents"
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+            
+        # Pagination
+        sql += " ORDER BY date_document DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        
+        result = []
+        for row in rows:
+            d = dict(row)
+            try:
+                d["keywords"] = json.loads(d["keywords"]) if d["keywords"] else []
+            except:
+                d["keywords"] = []
+            result.append(d)
+            
+        conn.close()
+        return result
 
         cursor.execute(sql, params)
         rows = cursor.fetchall()
@@ -470,7 +566,7 @@ class Database:
         row = cursor.fetchone()
         conn.close()
 
-        return row["budget_amount"] if row else None
+        return row['budget_amount'] if row else None
 
     def get_budget_status(self, category: str, month: str) -> dict:
         budget = self.get_budget(category, month) or 0.0
@@ -543,3 +639,88 @@ class Database:
 
         conn.close()
         return totals
+
+    def get_statistics(self) -> Dict:
+        """
+        Holt Gesamt-Statistiken (mit Caching)
+        """
+        # Versuche Cache (Redis/Memory)
+        try:
+            from app.cache import CacheManager
+            cache = CacheManager()
+            cached_stats = cache.get('db:statistics')
+            if cached_stats:
+                return cached_stats
+        except:
+            pass
+            
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        
+        stats = {
+            'total_documents': 0,
+            'categories': {},
+            'recent_uploads': []
+        }
+        
+        # Total Documents
+        cursor.execute("SELECT COUNT(*) as count FROM documents")
+        stats['total_documents'] = cursor.fetchone()['count']
+        
+        # Categories
+        cursor.execute("SELECT category, COUNT(*) as count FROM documents GROUP BY category")
+        for row in cursor.fetchall():
+            stats['categories'][row['category']] = row['count']
+            
+        conn.close()
+        
+        # Cache speichern
+        try:
+            cache.set('db:statistics', stats, timeout=3600)
+        except:
+            pass
+            
+        return stats
+
+    # --- Semantic Search Support ---
+
+    def save_embedding(self, document_id: int, embedding: List[float]):
+        """Speichert Embedding Vektor"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute(
+                "INSERT OR REPLACE INTO document_embeddings (document_id, embedding) VALUES (?, ?)",
+                (document_id, json.dumps(embedding))
+            )
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern des Embeddings: {e}")
+
+    def get_all_embeddings(self) -> List[Dict]:
+        """Holt alle Embeddings für Duplikat-Check"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT document_id, embedding FROM document_embeddings")
+            rows = cursor.fetchall()
+            
+            result = []
+            for row in rows:
+                try:
+                    result.append({
+                        'doc_id': row['document_id'],
+                        'embedding': json.loads(row['embedding'])
+                    })
+                except:
+                    pass
+            
+            conn.close()
+            return result
+        except Exception as e:
+            logger.error(f"Fehler beim Laden der Embeddings: {e}")
+            return []
