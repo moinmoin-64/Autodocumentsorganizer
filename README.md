@@ -26,7 +26,7 @@ Ein KI-gestütztes System zur automatischen Kategorisierung und Verwaltung gesca
 
 ```bash
 cd /home/pi
-git clone <your-repo-url> OrganisationsAI
+git clone https://github.com/moinmoin-64/Autodocumentsorganizer.git OrganisationsAI
 cd OrganisationsAI
 ```
 
