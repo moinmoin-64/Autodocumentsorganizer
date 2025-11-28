@@ -114,51 +114,74 @@ async function updateExpensesPieChart(year) {
             expensesPieChart.destroy();
         }
 
+        // Light mode solid colors
+        const colors = [
+            '#5B4BF2', // Purple
+            '#10B981', // Green
+            '#F59E0B', // Orange
+            '#EF4444', // Red
+            '#3B82F6', // Blue
+            '#8B5CF6', // Light Purple
+            '#06B6D4', // Cyan
+            '#EC4899'  // Pink
+        ];
+
         // Create new chart
         const ctx = document.getElementById('expensesPieChart').getContext('2d');
+
         expensesPieChart = new Chart(ctx, {
-            type: 'pie',
+            type: 'doughnut',
             data: {
                 labels: labels,
                 datasets: [{
                     data: values,
-                    backgroundColor: [
-                        '#4F46E5',
-                        '#10B981',
-                        '#F59E0B',
-                        '#EF4444',
-                        '#8B5CF6',
-                        '#06B6D4',
-                        '#EC4899',
-                        '#F97316'
-                    ],
+                    backgroundColor: colors.slice(0, labels.length),
                     borderWidth: 2,
-                    borderColor: '#1E293B'
+                    borderColor: '#FFFFFF',
+                    hoverOffset: 8,
+                    hoverBorderWidth: 3,
+                    hoverBorderColor: '#5B4BF2'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 2000,
-                    easing: 'easeOutQuart'
+                    duration: 1200,
+                    easing: 'easeInOutQuart'
                 },
                 plugins: {
                     legend: {
                         position: 'right',
                         labels: {
-                            color: '#F1F5F9',
+                            color: '#374151',
+                            padding: 16,
                             font: {
-                                size: 12
-                            }
+                                size: 13,
+                                family: 'Inter',
+                                weight: '500'
+                            },
+                            usePointStyle: true,
+                            pointStyle: 'circle'
                         }
                     },
                     tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleColor: '#F8FAFC',
+                        bodyColor: '#CBD5E1',
+                        borderColor: 'rgba(99, 102, 241, 0.3)',
+                        borderWidth: 1,
+                        padding: 12,
+                        boxPadding: 6,
+                        usePointStyle: true,
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
                         callbacks: {
-                            label: function (context) {
-                                const label = context.label || '';
-                                const value = context.parsed || 0;
-                                return `${label}: ${value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}`;
+                            label: (context) => {
+                                const value = context.parsed;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return ` ${value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} (${percentage}%)`;
                             }
                         }
                     }
@@ -189,7 +212,7 @@ async function updateYearComparison() {
             yearComparisonChart.destroy();
         }
 
-        // Create new chart
+        // Create new chart with modern styling
         const ctx = document.getElementById('yearComparisonChart').getContext('2d');
         yearComparisonChart = new Chart(ctx, {
             type: 'bar',
@@ -199,54 +222,112 @@ async function updateYearComparison() {
                     {
                         label: year1,
                         data: year1Data,
-                        backgroundColor: '#4F46E5',
-                        borderWidth: 0
+                        backgroundColor: '#5B4BF2',
+                        borderColor: '#5B4BF2',
+                        borderWidth: 0,
+                        borderRadius: 8,
+                        borderSkipped: false
                     },
                     {
                         label: year2,
                         data: year2Data,
                         backgroundColor: '#10B981',
-                        borderWidth: 0
+                        borderColor: '#10B981',
+                        borderWidth: 0,
+                        borderRadius: 8,
+                        borderSkipped: false
                     }
                 ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: {
+                    duration: 1000,
+                    easing: 'easeInOutCubic'
+                },
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
                 scales: {
                     y: {
                         beginAtZero: true,
+                        grid: {
+                            color: '#F3F4F6',
+                            drawBorder: false
+                        },
                         ticks: {
-                            color: '#F1F5F9',
-                            callback: function (value) {
-                                return value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+                            color: '#6B7280',
+                            font: {
+                                family: 'Inter',
+                                size: 12
+                            },
+                            callback: (value) => {
+                                return value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
                             }
                         },
-                        grid: {
-                            color: 'rgba(148, 163, 184, 0.1)'
+                        border: {
+                            display: false
                         }
                     },
                     x: {
-                        ticks: {
-                            color: '#F1F5F9'
-                        },
                         grid: {
-                            color: 'rgba(148, 163, 184, 0.1)'
+                            display: false,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            color: '#6B7280',
+                            font: {
+                                family: 'Inter',
+                                size: 12
+                            }
+                        },
+                        border: {
+                            display: false
                         }
                     }
                 },
                 plugins: {
                     legend: {
+                        position: 'top',
+                        align: 'end',
                         labels: {
-                            color: '#F1F5F9'
+                            color: '#F8FAFC',
+                            padding: 16,
+                            font: {
+                                family: 'Inter',
+                                size: 13,
+                                weight: '500'
+                            },
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            boxWidth: 8,
+                            boxHeight: 8
                         }
                     },
                     tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                        titleColor: '#F8FAFC',
+                        bodyColor: '#CBD5E1',
+                        borderColor: 'rgba(99, 102, 241, 0.3)',
+                        borderWidth: 1,
+                        padding: 12,
+                        boxPadding: 6,
+                        titleFont: {
+                            family: 'Inter',
+                            size: 14,
+                            weight: 'bold'
+                        },
+                        bodyFont: {
+                            family: 'Inter',
+                            size: 13
+                        },
                         callbacks: {
-                            label: function (context) {
+                            label: (context) => {
                                 const label = context.dataset.label || '';
                                 const value = context.parsed.y || 0;
-                                return `${label}: ${value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}`;
+                                return ` ${label}: ${value.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}`;
                             }
                         }
                     }

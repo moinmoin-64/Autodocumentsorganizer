@@ -1,124 +1,145 @@
-/* Tab Navigation */
-.tabs-nav {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 2rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    padding-bottom: 0.5rem;
-}
-
-.tab-btn {
-    background: none;
-    border: none;
-    color: #a0aec0;
-    padding: 0.75rem 1.5rem;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    border-radius: 8px;
-}
-
-.tab-btn:hover {
-    color: white;
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.tab-btn.active {
-    color: white;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.tab-content {
-    display: none;
-    animation: fadeIn 0.3s ease;
-}
-
-.tab-content.active {
-    display: block;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
+/* ========================================
+   TABS - LIGHT MODE
+   ======================================== */
 
 /* Statistics Layout */
 .stats-container {
     display: grid;
     grid-template-columns: 2fr 1fr;
-    gap: 2rem;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
 }
 
-.chart-card {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    border-radius: 12px;
-    padding: 1.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
+/* Budget Section */
 .budget-section {
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(10px);
-    border-radius: 12px;
-    padding: 1.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--white);
+    border: 1 px solid var(--border-default);
+    border-radius: var(--radius-xl);
+    padding: var(--space-4);
+    box-shadow: var(--shadow-sm);
+}
+
+.budget-section h3 {
+    color: var(--text-primary);
+    margin-bottom: var(--space-3);
+    font-weight: 600;
+}
+
+.budget-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.budget-form label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 0.25rem;
 }
 
 .budget-form input,
 .budget-form select {
     width: 100%;
-    padding: 0.75rem;
-    margin-bottom: 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: white;
+    padding: var(--space-2);
+    background: var(--white);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    font-family: 'Inter', sans-serif;
+    transition: all var(--transition-base);
+}
+
+.budget-form input:focus,
+.budget-form select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 .budget-form button {
     width: 100%;
-    padding: 0.75rem;
-    background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    padding: var(--space-2);
+    background: var(--success);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     color: white;
     font-weight: 600;
+    font-family: 'Inter', sans-serif;
     cursor: pointer;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-sm);
+    margin-top: var(--space-2);
 }
 
+.budget-form button:hover {
+    background: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.budget-form button:active {
+    transform: translateY(0);
+}
+
+/* Predictions Grid */
 .predictions-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-2);
+    margin-top: var(--space-3);
 }
 
 .prediction-card {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 1rem;
-    border-radius: 8px;
+    background: var(--white);
+    border: 1px solid var(--border-default);
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
     text-align: center;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-xs);
+}
+
+.prediction-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.prediction-card h4 {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: var(--space-1);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .prediction-value {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     font-weight: 700;
-    color: #48bb78;
-    margin: 0.5rem 0;
+    color: var(--success);
+    margin: var(--space-1) 0;
+    font-variant-numeric: tabular-nums;
 }
 
 .prediction-value small {
     display: block;
-    font-size: 0.8rem;
-    color: #a0aec0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
     font-weight: 400;
+    margin-top: 0.25rem;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .stats-container {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .predictions-grid {
+        grid-template-columns: 1fr;
+    }
 }
