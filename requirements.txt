@@ -1,0 +1,22 @@
+# Utilities
+PyYAML==6.0.1
+requests==2.31.0
+watchdog==3.0.0
+
+# OCR Tools
+langdetect==1.0.9
+
+# Text-Verarbeitung
+python-docx==1.1.0
+PyPDF2==3.0.1
+pdfplumber==0.10.3
+
+# Datum-Extraktion
+dateparser==1.2.0
+regex==2023.10.3
+
+# Logging
+colorlog==6.8.0
+
+# System Monitor
+psutil==5.9.6

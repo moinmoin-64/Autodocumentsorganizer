@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dokumentenverwaltung - Dashboard</title>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Eigene Styles -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/advanced-search.css">
+    <link rel="stylesheet" href="css/tabs.css">
+</head>
+
+<body>
+    <!-- Header (fest oben) -->
+    <header class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <h1><i class="fas fa-folder-open"></i> Dokumentenverwaltung</h1>
+            </div>
+            <div class="header-right">
+                <!-- Suchfeld -->
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Dokumente durchsuchen...">
+                    <div id="searchResults" class="search-results hidden"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Tab Navigation -->
+            <div class="tabs-nav">
+                <button class="tab-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+                <button class="tab-btn" onclick="switchTab('search')">Erweiterte Suche</button>
+                <button class="tab-btn" onclick="switchTab('statistics')">Statistiken</button>
+            </div>
+
+            <!-- Dashboard Tab -->
+            <div id="dashboard-tab" class="tab-content active">
+                <!-- Statistik-Karten -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalDocs">0</h3>
+                            <p>Dokumente gesamt</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalInsurances">0</h3>
+                            <p>Versicherungen</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-euro-sign"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalExpenses">0 €</h3>
+                            <p>Ausgaben (Dieses Jahr)</p>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-folder"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="totalCategories">0</h3>
+                            <p>Kategorien</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload-Bereich -->
+                <div class="upload-section">
+                    <h2><i class="fas fa-cloud-upload-alt"></i> Dokument hochladen</h2>
+                    <div class="upload-area" id="uploadArea">
+                        <i class="fas fa-file-upload"></i>
+                        <p>Datei hierher ziehen oder klicken zum Auswählen</p>
+                        <input type="file" id="fileInput" accept=".pdf,.jpg,.jpeg,.png" hidden>
+                        <div id="uploadProgress" class="upload-progress hidden">
+                            <div class="progress-bar"></div>
+                            <span class="progress-text">Wird hochgeladen...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diagramme (Original Dashboard Charts) -->
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h2><i class="fas fa-chart-pie"></i> Ausgaben nach Kategorie</h2>
+                            <div class="year-selector">
+                                <label for="expensesYear">Jahr:</label>
+                                <select id="expensesYear"></select>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="expensesPieChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h2><i class="fas fa-chart-bar"></i> Jahresvergleich</h2>
+                            <div class="year-selector">
+                                <label for="compareYear1">Jahr 1:</label>
+                                <select id="compareYear1"></select>
+                                <label for="compareYear2">Jahr 2:</label>
+                                <select id="compareYear2"></select>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="yearComparisonChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Versicherungen-Liste -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2><i class="fas fa-shield-alt"></i> Meine Versicherungen</h2>
+                        <button class="btn-refresh" onclick="loadInsurances()">
+                            <i class="fas fa-sync-alt"></i> Aktualisieren
+                        </button>
+                    </div>
+                    <div class="table-container">
+                        <table id="insurancesTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Versicherer</th>
+                                    <th>Typ</th>
+                                    <th>Police-Nr.</th>
+                                    <th>Beitrag</th>
+                                    <th>Intervall</th>
+                                    <th>Laufzeit Ende</th>
+                                </tr>
+                            </thead>
+                            <tbody id="insurancesBody">
+                                <tr>
+                                    <td colspan="6" class="loading">Lade Daten...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Letzte Dokumente -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2><i class="fas fa-clock"></i> Letzte Dokumente</h2>
+                    </div>
+                    <div class="documents-grid" id="recentDocuments">
+                        <div class="loading">Lade Dokumente...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Search Tab -->
+            <div id="search-tab" class="tab-content">
+                <div id="advanced-search-panel">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Suchbegriff</label>
+                            <input type="text" id="search-query" placeholder="Text...">
+                        </div>
+                        <div class="filter-group">
+                            <label>Kategorie</label>
+                            <select id="filter-category">
+                                <option value="">Alle Kategorien</option>
+                                <option value="Rechnung">Rechnung</option>
+                                <option value="Versicherung">Versicherung</option>
+                                <option value="Vertrag">Vertrag</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Von</label>
+                            <input type="date" id="filter-start-date">
+                        </div>
+                        <div class="filter-group">
+                            <label>Bis</label>
+                            <input type="date" id="filter-end-date">
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <label>Tags</label>
+                        <div id="tag-suggestions" class="tag-suggestions"></div>
+                    </div>
+
+                    <div class="filter-actions">
+                        <button id="apply-filters">Suchen</button>
+                        <button id="clear-filters">Zurücksetzen</button>
+                        <button id="save-search-btn">Suche speichern</button>
+                    </div>
+                </div>
+
+                <div id="saved-searches-list" class="saved-searches-sidebar"></div>
+                <div id="search-results"></div>
+            </div>
+
+            <!-- Statistics Tab -->
+            <div id="statistics-tab" class="tab-content">
+                <div class="stats-container">
+                    <div class="chart-card">
+                        <div class="chart-header"
+                            style="display:flex; justify-content:space-between; margin-bottom:1rem;">
+                            <h3>Ausgaben-Trends</h3>
+                            <select id="stats-year-select"
+                                style="background:rgba(255,255,255,0.1); color:white; border:none; padding:0.25rem; border-radius:4px;">
+                                <option value="2024">2024</option>
+                                <option value="2023">2023</option>
+                            </select>
+                        </div>
+                        <canvas id="trends-chart"></canvas>
+                    </div>
+
+                    <div class="budget-section">
+                        <h3>Budget setzen</h3>
+                        <form id="budget-form" class="budget-form">
+                            <select name="category" required>
+                                <option value="">Kategorie wählen...</option>
+                                <option value="Lebensmittel">Lebensmittel</option>
+                                <option value="Miete">Miete</option>
+                                <option value="Strom">Strom</option>
+                                <option value="Versicherung">Versicherung</option>
+                            </select>
+                            <input type="number" name="amount" placeholder="Betrag (€)" required>
+                            <button type="submit">Speichern</button>
+                        </form>
+
+                        <h3 style="margin-top:2rem;">KI-Prognosen (3 Monate)</h3>
+                        <div id="predictions-container" class="predictions-grid"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Ollama Chatbot Overlay -->
+    <div id="chatbotOverlay" class="chatbot-overlay hidden">
+        <div class="chatbot-container">
+            <div class="chatbot-header">
+                <h3><i class="fas fa-robot"></i> Dokumenten-Assistent</h3>
+                <button class="chatbot-close" onclick="toggleChatbot()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="chatbot-messages" id="chatMessages">
+                <div class="chat-message bot-message">
+                    <p>Hallo! Ich bin dein Dokumenten-Assistent. Frage mich alles über deine Dokumente, Versicherungen
+                        oder Ausgaben.</p>
+                </div>
+            </div>
+            <div class="chatbot-input">
+                <input type="text" id="chatInput" placeholder="Nachricht eingeben...">
+                <button onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chatbot Button (unten rechts) -->
+    <button id="chatbotButton" class="chatbot-button" onclick="toggleChatbot()">
+        <svg width="50" height="50" viewBox="0 0 100 100">
+            <!-- Lama-ähnliches Logo -->
+            <circle cx="50" cy="50" r="45" fill="#4F46E5" />
+            <ellipse cx="50" cy="45" rx="25" ry="30" fill="white" />
+            <circle cx="42" cy="40" r="3" fill="#4F46E5" />
+            <circle cx="58" cy="40" r="3" fill="#4F46E5" />
+            <path d="M 40 50 Q 50 55 60 50" stroke="#4F46E5" fill="none" stroke-width="2" />
+        </svg>
+    </button>
+
+    <!-- Scripts -->
+    <script src="js/app.js"></script>
+    <script src="js/chatbot.js"></script>
+    <script src="js/advanced-search.js"></script>
+    <script src="js/statistics.js"></script>
+    <script>
+        function switchTab(tabId) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabId + '-tab').classList.add('active');
+
+            // Activate button
+            const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.toLowerCase().includes(tabId === 'search' ? 'suche' : tabId));
+            if (btn) btn.classList.add('active');
+        }
+    </script>
+</body>
+
+</html>

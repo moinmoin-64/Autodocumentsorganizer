@@ -1,0 +1,66 @@
+
+system:
+  storage:
+    base_path: "C:/Users/olist/AppData/Local/Temp/tmpn6174_7c/storage"
+    data_path: "C:/Users/olist/AppData/Local/Temp/tmpn6174_7c/data"
+    structure_file: "C:/Users/olist/AppData/Local/Temp/tmpn6174_7c/structure.json"
+
+web:
+  host: "0.0.0.0"
+  port: 5000
+  debug: true
+  secret_key: "test_secret"
+
+auth:
+  enabled: true
+  users:
+    admin: "admin123"
+
+database:
+  path: "C:/Users/olist/AppData/Local/Temp/tmpn6174_7c/test.db"
+
+ocr:
+  engine: "tesseract"
+  languages: ["deu", "eng"]
+
+ai:
+  categorization:
+    enabled: true  # AI aktiviert
+    model: "paraphrase-multilingual-MiniLM-L12-v2"
+    confidence_threshold: 0.6
+    
+categories:
+  main:
+    - Rechnungen
+    - Versicherungen
+    - Verträge
+    - Sonstiges
+  keywords:
+    Rechnungen:
+      - rechnung
+      - invoice
+      - strom
+    Versicherungen:
+      - versicherung
+      - police
+    Verträge:
+      - vertrag
+      - contract
+
+data_extraction:
+  Rechnungen:
+    fields:
+      - name: "betrag"
+        type: "currency"
+        patterns:
+          - 'Betrag:\s*([\d,.]+)\s*EUR'
+      - name: "rechnungsnummer"
+        type: "text"
+        patterns:
+          - 'Rechnungs-Nr:\s*([\w-]+)'
+  Versicherungen:
+    fields:
+      - name: "police_nr"
+        type: "text"
+        patterns:
+          - 'Police-Nr:\s*([\w-]+)'
