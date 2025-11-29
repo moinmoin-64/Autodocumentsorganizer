@@ -300,24 +300,12 @@
                 fill="white" stroke="none" />
             <!-- Typing dots -->
             <circle cx="40" cy="42" r="4" fill="#5B4BF2" />
-            <circle cx="50" cy="42" r="4" fill="#5B4BF2" />
-            <circle cx="60" cy="42" r="4" fill="#5B4BF2" />
-        </svg>
-    </button>
-
-    <!-- Scripts -->
-    <script src="js/app.js"></script>
-    <script src="js/chatbot.js"></script>
-    <script src="js/advanced-search.js"></script>
-    <script src="js/statistics.js"></script>
-    <script>
-        function switchTab(tabId) {
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
+            tab.classList.remove('active');
             });
             document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('active');
+            btn.classList.remove('active');
             });
 
             // Show selected tab
@@ -325,14 +313,14 @@
 
             // Activate button
             const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => {
-                const text = b.textContent.toLowerCase();
-                if (tabId === 'search') return text.includes('suche');
-                if (tabId === 'statistics') return text.includes('statistik');
-                return text.includes(tabId);
+            const text = b.textContent.toLowerCase();
+            if (tabId === 'search') return text.includes('suche');
+            if (tabId === 'statistics') return text.includes('statistik');
+            return text.includes(tabId);
             });
             if (btn) btn.classList.add('active');
-        }
-    </script>
+            }
+            </script>
 </body>
 
 </html>

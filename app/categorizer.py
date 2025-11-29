@@ -26,8 +26,8 @@ class DocumentCategorizer:
         with open(config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
         
-        self.categories = self.config['categories']
         self.keywords = self.config['categories']['keywords']
+        self.categories = list(self.keywords.keys())
         
         # AI aktiviert?
         self.ai_enabled = self.config['ai']['categorization'].get('enabled', False)

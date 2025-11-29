@@ -25,7 +25,7 @@ def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@upload_bp.route('/api/upload', methods=['POST'])
+@upload_bp.route('/upload', methods=['POST'])
 def upload_file():
     """
     Upload-Endpoint für manuelle Dokument-Uploads
@@ -75,7 +75,7 @@ def upload_file():
         return jsonify({'error': str(e)}), 500
 
 
-@upload_bp.route('/api/upload/process/<path:filepath>', methods=['POST'])
+@upload_bp.route('/upload/process/<path:filepath>', methods=['POST'])
 def process_uploaded_file(filepath: str):
     """
     Startet Verarbeitung einer hochgeladenen Datei

@@ -40,8 +40,21 @@ source venv/bin/activate
 echo -e "\n${YELLOW}=== Schritt 2: Python Dependencies ===${NC}"
 echo "Installiere Requirements..."
 pip install --upgrade pip -q
-pip install -r requirements.txt -q
+pip install -r requirements.txt
+
 echo -e "${GREEN}✓ Dependencies installiert${NC}"
+echo -e "${GREEN}  → Flask, SQLAlchemy, Werkzeug, APScheduler${NC}"
+echo -e "${GREEN}  → pytest, Coverage (dev)${NC}"
+
+# Optional: Install dev dependencies
+if [ -f "requirements-dev.txt" ]; then
+    read -p "Development-Dependencies installieren? [J/n] " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+        pip install -r requirements-dev.txt -q
+        echo -e "${GREEN}✓ Dev-Dependencies installiert${NC}"
+    fi
+fi
 
 # 3. .env Datei erstellen
 echo -e "\n${YELLOW}=== Schritt 3: .env Konfiguration ===${NC}"

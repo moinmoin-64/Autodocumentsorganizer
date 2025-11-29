@@ -602,7 +602,7 @@ async function uploadFile(file) {
     // Validate file type
     const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
     if (!validTypes.includes(file.type)) {
-        showToast('Nur PDF, JPG und PNG Dateien erlaubt!', 'error');
+        notifications.show('Ungültiges Format', 'Nur PDF, JPG und PNG Dateien erlaubt!', 'error');
         return;
     }
 
@@ -642,7 +642,7 @@ async function uploadFile(file) {
                     uploadProgress.classList.add('hidden');
 
                     // Show success message
-                    showToast(`Dokument erfolgreich hochgeladen!<br>Kategorie: ${processData.category}`, 'success');
+                    notifications.show('Upload erfolgreich', `Dokument erfolgreich hochgeladen!<br>Kategorie: ${processData.category}`, 'success');
                 }, 1000);
             } else {
                 throw new Error(processData.error || 'Processing failed');
@@ -654,7 +654,7 @@ async function uploadFile(file) {
     } catch (error) {
         console.error('Upload error:', error);
         progressText.textContent = '✗ Fehler beim Upload';
-        showToast('Fehler beim Upload: ' + error.message, 'error');
+        notifications.show('Upload fehlgeschlagen', 'Fehler beim Upload: ' + error.message, 'error');
 
         setTimeout(() => {
             uploadProgress.classList.add('hidden');
@@ -662,47 +662,7 @@ async function uploadFile(file) {
     }
 }
 
-// === Toast Notifications ===
-function showToast(message, type = 'info') {
-    let container = document.querySelector('.toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'toast-container';
-        document.body.appendChild(container);
-    }
 
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-
-    let icon = 'info-circle';
-    if (type === 'success') icon = 'check-circle';
-    if (type === 'error') icon = 'exclamation-circle';
-
-    toast.innerHTML = `
-        <div class="toast-content">
-            <i class="fas fa-${icon}"></i>
-            <span>${message}</span>
-        </div>
-    `;
-
-    container.appendChild(toast);
-
-    // Auto remove
-    setTimeout(() => {
-        toast.classList.add('hiding');
-        toast.addEventListener('transitionend', () => {
-            toast.remove();
-            if (container.children.length === 0) {
-                container.remove();
-            }
-        });
-    }, 5000);
-
-    // Click to remove
-    toast.addEventListener('click', () => {
-        toast.classList.add('hiding');
-    });
-}
 
 // === Helper Functions ===
 function downloadDocument(docId) {

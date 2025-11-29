@@ -1,3 +1,1 @@
-"""
-Test Package Init
-"""
+"""Test Package Initialization"""

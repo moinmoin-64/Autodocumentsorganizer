@@ -141,9 +141,13 @@ echo -e "${YELLOW}=== Schritt 8: Python Packages ===${NC}"
 sudo -u "$REAL_USER" bash -c "
     source venv/bin/activate
     pip install --upgrade pip -q
+    echo 'Installing Python packages from requirements.txt...'
     pip install -r requirements.txt
+    echo 'Installing development dependencies...'
+    pip install -r requirements-dev.txt || echo 'Dev dependencies optional'
 "
 echo -e "${GREEN}✓ Python Packages installiert${NC}"
+echo -e "${GREEN}  → Flask, SQLAlchemy, pytest, etc.${NC}"
 
 echo ""
 echo -e "${YELLOW}=== Schritt 9: Ollama Model Download ===${NC}"

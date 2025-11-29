@@ -1,175 +1,39 @@
 """
-Database - SQLite Datenbank für Metadaten
+Database - SQLAlchemy Implementation
 """
 
 import logging
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, List, Dict
-import sqlite3
+from typing import Optional, List, Dict, Any
 import json
 import yaml
+from sqlalchemy import or_, and_, func, desc
+from app.db_config import get_db, engine
+from app.models import Base, Document, Tag, AuditLog, SavedSearch, Budget, document_tags
 
 logger = logging.getLogger(__name__)
 
-
 class Database:
-    """SQLite Datenbank-Manager (einfache Implementierung ohne SQLAlchemy)"""
+    """SQLAlchemy Database Manager"""
 
     def __init__(self, config_path: str = 'config.yaml'):
         """Initialisiert Datenbank"""
-        with open(config_path, 'r', encoding='utf-8') as f:
-            self.config = yaml.safe_load(f)
-
-        self.db_path = self.config['database']['path']
-
-        # Erstelle Verzeichnis
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-
-        # Initialisiere DB
-        self._initialize_database()
-
-        logger.info(f"Datenbank initialisiert: {self.db_path}")
-
-    def _get_connection(self) -> sqlite3.Connection:
-        """Erstellt DB-Verbindung"""
-        conn = sqlite3.Connection(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _initialize_database(self):
-        """Erstellt Tabellen"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS documents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                filepath TEXT UNIQUE NOT NULL,
-                filename TEXT NOT NULL,
-                category TEXT NOT NULL,
-                subcategory TEXT,
-                date_document TEXT,
-                date_added TEXT DEFAULT CURRENT_TIMESTAMP,
-                summary TEXT,
-                keywords TEXT,
-                full_text TEXT,
-                confidence REAL,
-                processing_time REAL,
-                content_hash TEXT,
-                amount REAL,
-                currency TEXT
-            )
-        ''')
-
-        # Kategorien
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS categories (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                parent_id INTEGER,
-                auto_created INTEGER DEFAULT 0,
-                FOREIGN KEY (parent_id) REFERENCES categories(id)
-            )
-        ''')
-
-        # Tags
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS tags (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                document_id INTEGER NOT NULL,
-                tag_name TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
-            )
-        ''')
-
-        # gespeicherte Suchen
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS saved_searches (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT DEFAULT 'default',
-                name TEXT NOT NULL,
-                filters TEXT NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-
-        # Budgets
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS budgets (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category TEXT NOT NULL,
-                month TEXT NOT NULL,
-                budget_amount REAL NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(category, month)
-            )
-        ''')
-
-        # Audit Log
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS audit_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-                user_id TEXT,
-                action TEXT NOT NULL,
-                resource_id TEXT,
-                details TEXT
-            )
-        ''')
-
-        # Optimierte Indexe für häufige Queries
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_category ON documents(category)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_date ON documents(date_document)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_document ON tags(document_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(tag_name)")
+        # Config laden (für Kompatibilität)
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                self.config = yaml.safe_load(f)
+        except Exception:
+            self.config = {}
         
-        # Composite Indizes für Performance
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_docs_category_date 
-            ON documents(category, date_document)
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_docs_amount_date
-            ON documents(amount, date_document)
-            WHERE amount IS NOT NULL
-        """)
-        
-        cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_tags_composite
-            ON tags(tag_name, document_id)
-        """)
-        
-        # Statistik-Cache-Tabelle
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS stats_cache (
-                cache_key TEXT PRIMARY KEY,
-                result TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Trigger für Auto-Invalidierung des Caches
-        cursor.execute('''
-            CREATE TRIGGER IF NOT EXISTS invalidate_stats_on_insert
-            AFTER INSERT ON documents
-            BEGIN
-                DELETE FROM stats_cache;
-            END
-        ''')
-        
-        cursor.execute('''
-            CREATE TRIGGER IF NOT EXISTS invalidate_stats_on_update
-            AFTER UPDATE ON documents
-            BEGIN
-                DELETE FROM stats_cache;
-            END
-        ''')
+        # Sicherstellen, dass Tabellen existieren
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database initialized with SQLAlchemy")
 
-        conn.commit()
-        conn.close()
+    def close(self):
+        """Dummy method for compatibility"""
+        pass
+
+    # --- Documents ---
 
     def add_document(
         self,
@@ -179,55 +43,99 @@ class Database:
         document_data: dict,
         date_document: Optional[datetime] = None
     ) -> Optional[int]:
-
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
+        """Fügt ein Dokument hinzu"""
         try:
-            date_str = date_document.isoformat() if date_document else None
+            with get_db() as session:
+                amount = document_data.get('validation', {}).get('amount')
+                if amount is None and document_data.get('amounts'):
+                    amount = document_data['amounts'][0]
 
-            amount = document_data.get('validation', {}).get('amount')
-            if amount is None and document_data.get('amounts'):
-                amount = document_data['amounts'][0]
+                currency = document_data.get('validation', {}).get('currency', 'EUR')
 
-            currency = document_data.get('validation', {}).get('currency', 'EUR')
-
-            cursor.execute('''
-                INSERT INTO documents (
-                    filepath, filename, category, subcategory,
-                    date_document, summary, keywords, full_text,
-                    confidence, processing_time, content_hash,
-                    amount, currency
+                doc = Document(
+                    filepath=filepath,
+                    filename=document_data.get('filename', filepath.split('/')[-1]),
+                    category=category,
+                    subcategory=subcategory,
+                    date_document=date_document,
+                    summary=document_data.get('text', '')[:500],
+                    keywords=json.dumps(document_data.get('keywords', [])),
+                    full_text=document_data.get('text', ''),
+                    ocr_confidence=document_data.get('confidence', 0),
+                    processing_time=document_data.get('processing_time', 0),
+                    content_hash=document_data.get('content_hash'),
+                    amount=amount,
+                    currency=currency
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                filepath,
-                Path(filepath).name,
-                category,
-                subcategory,
-                date_str,
-                document_data.get('text', '')[:500],
-                json.dumps(document_data.get('keywords', [])),
-                document_data.get('text', ''),
-                document_data.get('confidence', 0),
-                document_data.get('processing_time', 0),
-                document_data.get('content_hash'),
-                amount,
-                currency
-            ))
-
-            doc_id = cursor.lastrowid
-            conn.commit()
-            logger.info(f"Dokument hinzugefügt: {filepath} (ID {doc_id})")
-            return doc_id
+                
+                session.add(doc)
+                session.flush()
+                doc_id = doc.id
+                
+                logger.info(f"Dokument hinzugefügt: {filepath} (ID {doc_id})")
+                return doc_id
 
         except Exception as e:
             logger.error(f"Fehler beim Hinzufügen des Dokuments: {e}")
-            conn.rollback()
             return None
 
-        finally:
-            conn.close()
+    def get_document(self, doc_id: int) -> Optional[dict]:
+        """Holt Dokument per ID"""
+        try:
+            with get_db() as session:
+                doc = session.get(Document, doc_id)
+                if not doc:
+                    return None
+                return self._doc_to_dict(doc)
+        except Exception as e:
+            logger.error(f"Fehler beim Laden von Doc {doc_id}: {e}")
+            return None
+            
+    # Alias for compatibility
+    get_document_by_id = get_document
+
+    def delete_document(self, doc_id: int) -> bool:
+        """Löscht ein Dokument"""
+        try:
+            with get_db() as session:
+                doc = session.get(Document, doc_id)
+                if doc:
+                    session.delete(doc)
+                    return True
+                return False
+        except Exception as e:
+            logger.error(f"Fehler beim Löschen von Doc {doc_id}: {e}")
+            return False
+
+    def update_document(self, doc_id: int, data: dict) -> bool:
+        """Aktualisiert Dokument-Metadaten"""
+        try:
+            with get_db() as session:
+                doc = session.get(Document, doc_id)
+                if not doc:
+                    return False
+                
+                if 'category' in data:
+                    doc.category = data['category']
+                if 'subcategory' in data:
+                    doc.subcategory = data['subcategory']
+                if 'date_document' in data:
+                    if isinstance(data['date_document'], str):
+                        try:
+                            doc.date_document = datetime.fromisoformat(data['date_document'])
+                        except:
+                            pass
+                    else:
+                        doc.date_document = data['date_document']
+                if 'summary' in data:
+                    doc.summary = data['summary']
+                if 'amount' in data:
+                    doc.amount = data['amount']
+                
+                return True
+        except Exception as e:
+            logger.error(f"Fehler beim Aktualisieren von Doc {doc_id}: {e}")
+            return False
 
     def search_documents(
         self,
@@ -235,73 +143,48 @@ class Database:
         category: Optional[str] = None,
         start_date: Optional[datetime] = None,
         end_date: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
+        offset: int = 0,
+        year: Optional[int] = None
     ) -> List[dict]:
-
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        sql = "SELECT * FROM documents WHERE 1=1"
-        params = []
-
-        if category:
-            sql += " AND category = ?"
-            params.append(category)
-
-        if start_date:
-            sql += " AND date_document >= ?"
-            params.append(start_date.isoformat())
-
-        if end_date:
-            sql += " AND date_document <= ?"
-            params.append(end_date.isoformat())
-
-        if query:
-            q = f"%{query}%"
-            sql += " AND (filename LIKE ? OR summary LIKE ? OR keywords LIKE ?)"
-            params.extend([q, q, q])
-
-        sql += " ORDER BY date_added DESC LIMIT ?"
-        params.append(limit)
-
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-
-        result = []
-        for row in rows:
-            d = dict(row)
-            try:
-                d["keywords"] = json.loads(d["keywords"]) if d["keywords"] else []
-            except (json.JSONDecodeError, TypeError) as e:
-                logger.debug(f"Keyword-Parsing fehlgeschlagen: {e}")
-                d["keywords"] = []
-            result.append(d)
-
-        conn.close()
-        return result
-
-    def get_document_by_id(self, doc_id: int) -> Optional[dict]:
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT * FROM documents WHERE id = ?", (doc_id,))
-        row = cursor.fetchone()
-        conn.close()
-
-        if not row:
-            return None
-
-        doc = dict(row)
+        """Einfache Suche"""
         try:
-            doc["keywords"] = json.loads(doc["keywords"]) if doc["keywords"] else []
-        except (json.JSONDecodeError, TypeError) as e:
-            logger.debug(f"Keyword-Parsing fehlgeschlagen für Doc {doc_id}: {e}")
-            doc["keywords"] = []
-        return doc
+            with get_db() as session:
+                q = session.query(Document)
 
-    # ----------------------------------------------------------
-    #   FIXED: Die kaputt kopierte Methode ist vollständig neu!
-    # ----------------------------------------------------------
+                if category:
+                    q = q.filter(Document.category == category)
+
+                if start_date:
+                    q = q.filter(Document.date_document >= start_date)
+
+                if end_date:
+                    q = q.filter(Document.date_document <= end_date)
+                    
+                if year:
+                    # SQLite specific or generic year filtering
+                    # extract('year', Document.date_document) == year
+                    q = q.filter(func.strftime('%Y', Document.date_document) == str(year))
+
+                if query:
+                    search = f"%{query}%"
+                    q = q.filter(or_(
+                        Document.filename.ilike(search),
+                        Document.summary.ilike(search),
+                        Document.keywords.ilike(search)
+                    ))
+
+                q = q.order_by(desc(Document.date_added)).limit(limit).offset(offset)
+                
+                results = []
+                for doc in q.all():
+                    results.append(self._doc_to_dict(doc))
+                
+                return results
+        except Exception as e:
+            logger.error(f"Fehler bei der Suche: {e}")
+            return []
+
     def search_documents_advanced(
         self,
         query: Optional[str] = None,
@@ -313,411 +196,366 @@ class Database:
         tags: Optional[List[str]] = None,
         limit: int = 100
     ) -> List[dict]:
-
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        where = []
-        params = []
-
-        if query:
-            where.append("(full_text LIKE ? OR filename LIKE ?)")
-            params.extend([f"%{query}%", f"%{query}%"])
-
-        if category:
-            where.append("category = ?")
-            params.append(category)
-
-        if start_date:
-            where.append("date_document >= ?")
-            params.append(start_date.isoformat())
-
-        if end_date:
-            where.append("date_document <= ?")
-            params.append(end_date.isoformat())
-
-        if min_amount:
-            where.append("amount >= ?")
-            params.append(min_amount)
-
-        if max_amount:
-            where.append("amount <= ?")
-            params.append(max_amount)
-
-        if tags:
-            placeholders = ",".join(["?"] * len(tags))
-            where.append(f"""
-            id IN (
-                SELECT document_id FROM tags
-                WHERE tag_name IN ({placeholders})
-                GROUP BY document_id
-                HAVING COUNT(DISTINCT tag_name) = ?
-            )
-            """)
-            params.extend([t.lower() for t in tags])
-            params.append(len(tags))
-
-        sql = "SELECT * FROM documents"
-        if where:
-            sql += " WHERE " + " AND ".join(where)
-        sql += " ORDER BY date_document DESC LIMIT ?"
-        params.append(limit)
-        
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        
-        # Convert rows...
-        result = []
-        for row in rows:
-            d = dict(row)
-            try:
-                d["keywords"] = json.loads(d["keywords"]) if d["keywords"] else []
-            except (json.JSONDecodeError, TypeError) as e:
-                logger.debug(f"Keyword-Parsing fehlgeschlagen: {e}")
-                d["keywords"] = []
-            result.append(d)
-            
-        conn.close()
-        return result
-
-    # ----------------------------------------------------------
-    #  FIXED: add_tag() – die Funktion war kaputt abgeschnitten
-    # ----------------------------------------------------------
-    def add_tag(self, document_id: int, tag_name: str) -> Optional[int]:
-        """Fügt einem Dokument ein Tag hinzu"""
+        """Erweiterte Suche"""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
+            with get_db() as session:
+                q = session.query(Document)
 
-            cursor.execute(
-                "INSERT INTO tags (document_id, tag_name) VALUES (?, ?)",
-                (document_id, tag_name.lower())
-            )
+                if query:
+                    search = f"%{query}%"
+                    q = q.filter(or_(
+                        Document.full_text.ilike(search),
+                        Document.filename.ilike(search)
+                    ))
 
-            tag_id = cursor.lastrowid
-            conn.commit()
-            conn.close()
+                if category:
+                    q = q.filter(Document.category == category)
 
-            logger.info(f"Tag '{tag_name}' zu Dokument {document_id} hinzugefügt")
-            return tag_id
+                if start_date:
+                    q = q.filter(Document.date_document >= start_date)
 
+                if end_date:
+                    q = q.filter(Document.date_document <= end_date)
+
+                if min_amount is not None:
+                    q = q.filter(Document.amount >= min_amount)
+
+                if max_amount is not None:
+                    q = q.filter(Document.amount <= max_amount)
+
+                if tags:
+                    for tag_name in tags:
+                        q = q.filter(Document.tags.any(Tag.name == tag_name))
+
+                q = q.order_by(desc(Document.date_document)).limit(limit)
+
+                results = []
+                for doc in q.all():
+                    results.append(self._doc_to_dict(doc))
+                
+                return results
         except Exception as e:
-            logger.error(f"Fehler beim Hinzufügen eines Tags: {e}")
+            logger.error(f"Fehler bei erweiterter Suche: {e}")
+            return []
+
+    # --- Tags ---
+
+    def create_tag(self, name: str, color: str = '#808080') -> Optional[int]:
+        """Erstellt neuen Tag"""
+        try:
+            with get_db() as session:
+                name = name.lower()
+                tag = session.query(Tag).filter_by(name=name).first()
+                if not tag:
+                    tag = Tag(name=name, color=color)
+                    session.add(tag)
+                    session.flush()
+                return tag.id
+        except Exception as e:
+            logger.error(f"Fehler beim Erstellen von Tag: {e}")
             return None
 
-    def remove_tag(self, tag_id: int) -> bool:
-        """Entfernt ein Tag"""
+    def delete_tag(self, tag_id: int) -> bool:
+        """Löscht Tag"""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-
-            cursor.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
-            conn.commit()
-            conn.close()
-
-            logger.info(f"Tag {tag_id} entfernt")
-            return True
-
+            with get_db() as session:
+                tag = session.get(Tag, tag_id)
+                if tag:
+                    session.delete(tag)
+                    return True
+                return False
         except Exception as e:
-            logger.error(f"Fehler beim Entfernen eines Tags: {e}")
+            logger.error(f"Fehler beim Löschen von Tag: {e}")
             return False
 
-    def get_tags(self, document_id: int) -> List[dict]:
-        conn = self._get_connection()
-        cursor = conn.cursor()
+    def get_all_tags(self) -> List[dict]:
+        """Holt alle Tags"""
+        try:
+            with get_db() as session:
+                tags = session.query(Tag).order_by(Tag.name).all()
+                return [{'id': t.id, 'name': t.name, 'color': t.color} for t in tags]
+        except Exception as e:
+            logger.error(f"Fehler beim Laden aller Tags: {e}")
+            return []
 
-        cursor.execute(
-            "SELECT * FROM tags WHERE document_id = ? ORDER BY tag_name",
-            (document_id,)
-        )
+    def get_document_tags(self, document_id: int) -> List[dict]:
+        """Holt Tags für Dokument"""
+        try:
+            with get_db() as session:
+                doc = session.get(Document, document_id)
+                if not doc:
+                    return []
+                return [{'id': t.id, 'name': t.name, 'color': t.color} for t in doc.tags]
+        except Exception as e:
+            logger.error(f"Fehler beim Laden der Tags: {e}")
+            return []
+            
+    # Alias for compatibility
+    get_tags = get_document_tags
 
-        tags = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        return tags
+    def add_tag_to_document(self, document_id: int, tag_id: int) -> bool:
+        """Fügt existierenden Tag zu Dokument hinzu"""
+        try:
+            with get_db() as session:
+                doc = session.get(Document, document_id)
+                tag = session.get(Tag, tag_id)
+                
+                if doc and tag:
+                    if tag not in doc.tags:
+                        doc.tags.append(tag)
+                    return True
+                return False
+        except Exception as e:
+            logger.error(f"Fehler beim Hinzufügen von Tag zu Doc: {e}")
+            return False
 
-    def get_all_tags(self) -> List[str]:
-        conn = self._get_connection()
-        cursor = conn.cursor()
+    def add_tag(self, document_id: int, tag_name: str) -> Optional[int]:
+        """Legacy: Fügt Tag per Name hinzu (erstellt wenn nötig)"""
+        try:
+            with get_db() as session:
+                doc = session.get(Document, document_id)
+                if not doc:
+                    return None
+                
+                tag_name = tag_name.lower()
+                tag = session.query(Tag).filter_by(name=tag_name).first()
+                
+                if not tag:
+                    tag = Tag(name=tag_name)
+                    session.add(tag)
+                
+                if tag not in doc.tags:
+                    doc.tags.append(tag)
+                    session.commit()
+                    return tag.id
+                return tag.id
+        except Exception as e:
+            logger.error(f"Fehler beim Hinzufügen von Tag: {e}")
+            return None
 
-        cursor.execute("SELECT DISTINCT tag_name FROM tags ORDER BY tag_name")
-        tags = [row["tag_name"] for row in cursor.fetchall()]
+    def remove_tag_from_document(self, document_id: int, tag_id: int) -> bool:
+        """Entfernt Tag von Dokument"""
+        try:
+            with get_db() as session:
+                doc = session.get(Document, document_id)
+                tag = session.get(Tag, tag_id)
+                
+                if doc and tag and tag in doc.tags:
+                    doc.tags.remove(tag)
+                    return True
+                return False
+        except Exception as e:
+            logger.error(f"Fehler beim Entfernen von Tag: {e}")
+            return False
 
-        conn.close()
-        return tags
+    # --- Saved Searches ---
 
     def save_search(self, name: str, filters: dict, user_id: str = 'default') -> Optional[int]:
+        """Speichert Suche"""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-
-            cursor.execute(
-                "INSERT INTO saved_searches (user_id, name, filters) VALUES (?, ?, ?)",
-                (user_id, name, json.dumps(filters))
-            )
-
-            sid = cursor.lastrowid
-            conn.commit()
-            conn.close()
-            return sid
-
+            with get_db() as session:
+                search = SavedSearch(
+                    user_id=user_id,
+                    name=name,
+                    filters=json.dumps(filters)
+                )
+                session.add(search)
+                session.flush()
+                return search.id
         except Exception as e:
-            logger.error(f"Fehler beim Speichern einer Suche: {e}")
+            logger.error(f"Fehler beim Speichern der Suche: {e}")
             return None
 
     def get_saved_searches(self, user_id: str = "default") -> List[dict]:
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT * FROM saved_searches WHERE user_id = ? ORDER BY created_at DESC",
-            (user_id,)
-        )
-
-        result = []
-        for row in cursor.fetchall():
-            r = dict(row)
-            r["filters"] = json.loads(r["filters"])
-            result.append(r)
-
-        conn.close()
-        return result
+        """Lädt gespeicherte Suchen"""
+        try:
+            with get_db() as session:
+                searches = session.query(SavedSearch).filter_by(user_id=user_id).order_by(desc(SavedSearch.created_at)).all()
+                results = []
+                for s in searches:
+                    results.append({
+                        'id': s.id,
+                        'name': s.name,
+                        'filters': json.loads(s.filters),
+                        'created_at': s.created_at.isoformat()
+                    })
+                return results
+        except Exception as e:
+            logger.error(f"Fehler beim Laden der Suchen: {e}")
+            return []
 
     def delete_saved_search(self, search_id: int) -> bool:
+        """Löscht Suche"""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-
-            cursor.execute("DELETE FROM saved_searches WHERE id = ?", (search_id,))
-            conn.commit()
-            conn.close()
-            return True
-
+            with get_db() as session:
+                s = session.get(SavedSearch, search_id)
+                if s:
+                    session.delete(s)
+                    return True
+                return False
         except Exception as e:
-            logger.error(f"Fehler beim Löschen einer Suche: {e}")
+            logger.error(f"Fehler beim Löschen der Suche: {e}")
             return False
 
+    # --- Budgets & Stats ---
+
     def set_budget(self, category: str, month: str, amount: float) -> bool:
+        """Setzt Budget"""
         try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-
-            cursor.execute('''
-                INSERT INTO budgets (category, month, budget_amount)
-                VALUES (?, ?, ?)
-                ON CONFLICT(category, month)
-                DO UPDATE SET budget_amount = excluded.budget_amount
-            ''', (category, month, amount))
-
-            conn.commit()
-            conn.close()
-            return True
-
+            with get_db() as session:
+                budget = session.query(Budget).filter_by(category=category, month=month).first()
+                if budget:
+                    budget.budget_amount = amount
+                else:
+                    budget = Budget(category=category, month=month, budget_amount=amount)
+                    session.add(budget)
+                return True
         except Exception as e:
-            logger.error(f"Fehler beim Setzen eines Budgets: {e}")
+            logger.error(f"Fehler beim Setzen des Budgets: {e}")
             return False
 
     def get_budget(self, category: str, month: str) -> Optional[float]:
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        cursor.execute(
-            "SELECT budget_amount FROM budgets WHERE category = ? AND month = ?",
-            (category, month)
-        )
-
-        row = cursor.fetchone()
-        conn.close()
-
-        return row['budget_amount'] if row else None
+        """Holt Budget"""
+        try:
+            with get_db() as session:
+                budget = session.query(Budget).filter_by(category=category, month=month).first()
+                return budget.budget_amount if budget else None
+        except Exception as e:
+            logger.error(f"Fehler beim Laden des Budgets: {e}")
+            return None
 
     def get_budget_status(self, category: str, month: str) -> dict:
-        budget = self.get_budget(category, month) or 0.0
-
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        year, month_num = month.split('-')
-        year = int(year)
-        month_num = int(month_num)
-
-        start = f"{year}-{month_num:02d}-01"
-        end = f"{year + (1 if month_num == 12 else 0)}-{(1 if month_num == 12 else month_num + 1):02d}-01"
-
-        cursor.execute('''
-            SELECT SUM(amount) AS total
-            FROM documents
-            WHERE category = ? AND date_document >= ? AND date_document < ?
-        ''', (category, start, end))
-
-        actual = cursor.fetchone()["total"] or 0.0
-        conn.close()
-
-        return {
-            "budget": budget,
-            "actual": actual,
-            "remaining": budget - actual,
-            "percent": (actual / budget * 100) if budget > 0 else 0
-        }
+        """Berechnet Budget-Status"""
+        try:
+            budget_amount = self.get_budget(category, month) or 0.0
+            
+            year, month_num = map(int, month.split('-'))
+            
+            with get_db() as session:
+                import calendar
+                _, last_day = calendar.monthrange(year, month_num)
+                start_date = datetime(year, month_num, 1)
+                end_date = datetime(year, month_num, last_day, 23, 59, 59)
+                
+                actual = session.query(func.sum(Document.amount)).filter(
+                    Document.category == category,
+                    Document.date_document >= start_date,
+                    Document.date_document <= end_date
+                ).scalar() or 0.0
+                
+                return {
+                    "budget": budget_amount,
+                    "actual": actual,
+                    "remaining": budget_amount - actual,
+                    "percent": (actual / budget_amount * 100) if budget_amount > 0 else 0
+                }
+        except Exception as e:
+            logger.error(f"Fehler beim Budget-Status: {e}")
+            return {"budget": 0, "actual": 0, "remaining": 0, "percent": 0}
 
     def get_monthly_expenses(self, year: int, month: int) -> dict:
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        start = f"{year}-{month:02d}-01"
-        end = f"{year + (1 if month == 12 else 0)}-{(1 if month == 12 else month + 1):02d}-01"
-
-        cursor.execute('''
-            SELECT category, SUM(amount) as total
-            FROM documents
-            WHERE date_document >= ? AND date_document < ?
-                  AND amount IS NOT NULL
-            GROUP BY category
-        ''', (start, end))
-
-        result = {row["category"]: row["total"] for row in cursor.fetchall()}
-        conn.close()
-
-        return result
+        """Monatliche Ausgaben pro Kategorie"""
+        try:
+            import calendar
+            _, last_day = calendar.monthrange(year, month)
+            start_date = datetime(year, month, 1)
+            end_date = datetime(year, month, last_day, 23, 59, 59)
+            
+            with get_db() as session:
+                results = session.query(
+                    Document.category, func.sum(Document.amount)
+                ).filter(
+                    Document.date_document >= start_date,
+                    Document.date_document <= end_date,
+                    Document.amount.isnot(None)
+                ).group_by(Document.category).all()
+                
+                return {r[0]: r[1] for r in results}
+        except Exception as e:
+            logger.error(f"Fehler bei monatlichen Ausgaben: {e}")
+            return {}
 
     def get_monthly_trends(self, year: int) -> dict:
-        """Monatliche Gesamtausgaben eines Jahres"""
-        conn = self._get_connection()
-        cursor = conn.cursor()
-
-        totals = {}
-
-        for m in range(1, 13):
-            start = f"{year}-{m:02d}-01"
-            end = f"{year + (1 if m == 12 else 0)}-{(1 if m == 12 else m + 1):02d}-01"
-
-            cursor.execute('''
-                SELECT SUM(amount) AS total
-                FROM documents
-                WHERE date_document >= ? AND date_document < ?
-            ''', (start, end))
-
-            value = cursor.fetchone()["total"] or 0.0
-            totals[m] = value
-
-        conn.close()
-        return totals
+        """Jahrestrends"""
+        try:
+            totals = {}
+            with get_db() as session:
+                for m in range(1, 13):
+                    import calendar
+                    _, last_day = calendar.monthrange(year, m)
+                    start_date = datetime(year, m, 1)
+                    end_date = datetime(year, m, last_day, 23, 59, 59)
+                    
+                    total = session.query(func.sum(Document.amount)).filter(
+                        Document.date_document >= start_date,
+                        Document.date_document <= end_date
+                    ).scalar() or 0.0
+                    
+                    totals[m] = total
+            return totals
+        except Exception as e:
+            logger.error(f"Fehler bei Trends: {e}")
+            return {}
 
     def get_statistics(self) -> Dict:
-        """
-        Holt Gesamt-Statistiken (mit Caching)
-        """
-        # Versuche Cache (Redis/Memory)
+        """Gesamtstatistiken"""
         try:
-            from app.cache import CacheManager
-            cache = CacheManager()
-            cached_stats = cache.get('db:statistics')
-            if cached_stats:
-                return cached_stats
-        except ImportError:
-            logger.debug("Cache nicht verfügbar")
-            pass
+            with get_db() as session:
+                total_docs = session.query(func.count(Document.id)).scalar()
+                
+                cat_counts = session.query(
+                    Document.category, func.count(Document.id)
+                ).group_by(Document.category).all()
+                
+                categories = {r[0]: r[1] for r in cat_counts}
+                
+                return {
+                    'total_documents': total_docs,
+                    'categories': categories,
+                    'recent_uploads': []
+                }
+        except Exception as e:
+            logger.error(f"Fehler bei Statistiken: {e}")
+            return {'total_documents': 0, 'categories': {}}
+
+    def log_audit_event(self, user_id: str, action: str, resource_id: Optional[str] = None, details: Optional[dict] = None):
+        """Audit Log"""
+        try:
+            with get_db() as session:
+                log = AuditLog(
+                    user_id=user_id,
+                    action=action,
+                    document_id=int(resource_id) if resource_id and str(resource_id).isdigit() else None,
+                    details=json.dumps(details) if details else None
+                )
+                session.add(log)
+        except Exception as e:
+            logger.error(f"Fehler beim Audit Log: {e}")
+
+    def _doc_to_dict(self, doc: Document) -> dict:
+        """Helper to convert Document model to dict"""
+        try:
+            keywords = json.loads(doc.keywords) if doc.keywords else []
+        except:
+            keywords = []
             
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        stats = {
-            'total_documents': 0,
-            'categories': {},
-            'recent_uploads': []
+        tags = [{'id': t.id, 'name': t.name, 'color': t.color} for t in doc.tags]
+
+        return {
+            'id': doc.id,
+            'filename': doc.filename,
+            'filepath': doc.filepath,
+            'category': doc.category,
+            'subcategory': doc.subcategory,
+            'date_document': doc.date_document.isoformat() if doc.date_document else None,
+            'date_added': doc.date_added.isoformat() if doc.date_added else None,
+            'summary': doc.summary,
+            'keywords': keywords,
+            'full_text': doc.full_text,
+            'confidence': doc.ocr_confidence,
+            'processing_time': doc.processing_time,
+            'content_hash': doc.content_hash,
+            'amount': doc.amount,
+            'currency': doc.currency,
+            'tags': tags
         }
-        
-        # Total Documents
-        cursor.execute("SELECT COUNT(*) as count FROM documents")
-        stats['total_documents'] = cursor.fetchone()['count']
-        
-        # Categories
-        cursor.execute("SELECT category, COUNT(*) as count FROM documents GROUP BY category")
-        for row in cursor.fetchall():
-            stats['categories'][row['category']] = row['count']
-            
-        conn.close()
-        
-        # Cache speichern
-        try:
-            cache.set('db:statistics', stats, timeout=3600)
-        except (ImportError, Exception) as e:
-            logger.debug(f"Cache-Speicherung fehlgeschlagen: {e}")
-            pass
-            
-        return stats
-
-    # --- Semantic Search Support ---
-
-    def save_embedding(self, document_id: int, embedding: List[float]):
-        """Speichert Embedding Vektor"""
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute(
-                "INSERT OR REPLACE INTO document_embeddings (document_id, embedding) VALUES (?, ?)",
-                (document_id, json.dumps(embedding))
-            )
-            
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            logger.error(f"Fehler beim Speichern des Embeddings: {e}")
-
-    def get_all_embeddings(self) -> List[Dict]:
-        """Holt alle Embeddings für Duplikat-Check"""
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("SELECT document_id, embedding FROM document_embeddings")
-            rows = cursor.fetchall()
-            
-            result = []
-            for row in rows:
-                try:
-                    result.append({
-                        'doc_id': row['document_id'],
-                        'embedding': json.loads(row['embedding'])
-                    })
-                except (json.JSONDecodeError, KeyError) as e:
-                    logger.warning(f"Embedding-Parsing fehlgeschlagen: {e}")
-                    pass
-            
-            conn.close()
-            return result
-        except Exception as e:
-            logger.error(f"Fehler beim Laden der Embeddings: {e}")
-            return []
-
-    def log_audit_event(self, user_id: str, action: str, resource_id: Optional[str] = None, details: Optional[dict] = None):
-        """Loggt ein Audit-Event"""
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                INSERT INTO audit_log (user_id, action, resource_id, details)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, action, resource_id, json.dumps(details) if details else None))
-            
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            logger.error(f"Fehler beim Audit-Log: {e}")
-
-    def log_audit_event(self, user_id: str, action: str, resource_id: Optional[str] = None, details: Optional[dict] = None):
-        """Loggt ein Audit-Event"""
-        try:
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute('''
-                INSERT INTO audit_log (user_id, action, resource_id, details)
-                VALUES (?, ?, ?, ?)
-            ''', (user_id, action, resource_id, json.dumps(details) if details else None))
-            
-            conn.commit()
-            conn.close()
-        except Exception as e:
-            logger.error(f"Fehler beim Audit-Log: {e}")
