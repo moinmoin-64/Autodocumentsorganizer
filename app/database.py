@@ -107,6 +107,18 @@ class Database:
             )
         ''')
 
+        # Audit Log
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                user_id TEXT,
+                action TEXT NOT NULL,
+                resource_id TEXT,
+                details TEXT
+            )
+        ''')
+
         # Optimierte Indexe für häufige Queries
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_category ON documents(category)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_documents_date ON documents(date_document)")
@@ -260,7 +272,8 @@ class Database:
             d = dict(row)
             try:
                 d["keywords"] = json.loads(d["keywords"]) if d["keywords"] else []
-            except:
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.debug(f"Keyword-Parsing fehlgeschlagen: {e}")
                 d["keywords"] = []
             result.append(d)
 
@@ -281,7 +294,8 @@ class Database:
         doc = dict(row)
         try:
             doc["keywords"] = json.loads(doc["keywords"]) if doc["keywords"] else []
-        except:
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.debug(f"Keyword-Parsing fehlgeschlagen für Doc {doc_id}: {e}")
             doc["keywords"] = []
         return doc
 
@@ -358,65 +372,13 @@ class Database:
             d = dict(row)
             try:
                 d["keywords"] = json.loads(d["keywords"]) if d["keywords"] else []
-            except:
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.debug(f"Keyword-Parsing fehlgeschlagen: {e}")
                 d["keywords"] = []
             result.append(d)
             
         conn.close()
         return result
-
-        # Filter-Logik (wiederverwendet)
-        if kwargs.get('category'):
-            where.append("category = ?")
-            params.append(kwargs['category'])
-            
-        if kwargs.get('year'):
-            where.append("strftime('%Y', date_document) = ?")
-            params.append(str(kwargs['year']))
-            
-        if kwargs.get('query'):
-            where.append("(full_text LIKE ? OR filename LIKE ?)")
-            q = f"%{kwargs['query']}%"
-            params.extend([q, q])
-
-        sql = "SELECT * FROM documents"
-        if where:
-            sql += " WHERE " + " AND ".join(where)
-            
-        # Pagination
-        sql += " ORDER BY date_document DESC LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
-        
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-        
-        result = []
-        for row in rows:
-            d = dict(row)
-            try:
-                d["keywords"] = json.loads(d["keywords"]) if d["keywords"] else []
-            except:
-                d["keywords"] = []
-            result.append(d)
-            
-        conn.close()
-        return result
-
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
-
-        docs = []
-        for row in rows:
-            d = dict(row)
-            d["tags"] = self.get_tags(d["id"])
-            try:
-                d["keywords"] = json.loads(d["keywords"]) if d["keywords"] else []
-            except:
-                d["keywords"] = []
-            docs.append(d)
-
-        conn.close()
-        return docs
 
     # ----------------------------------------------------------
     #  FIXED: add_tag() – die Funktion war kaputt abgeschnitten
@@ -651,7 +613,8 @@ class Database:
             cached_stats = cache.get('db:statistics')
             if cached_stats:
                 return cached_stats
-        except:
+        except ImportError:
+            logger.debug("Cache nicht verfügbar")
             pass
             
         conn = self._get_connection()
@@ -677,7 +640,8 @@ class Database:
         # Cache speichern
         try:
             cache.set('db:statistics', stats, timeout=3600)
-        except:
+        except (ImportError, Exception) as e:
+            logger.debug(f"Cache-Speicherung fehlgeschlagen: {e}")
             pass
             
         return stats
@@ -716,7 +680,8 @@ class Database:
                         'doc_id': row['document_id'],
                         'embedding': json.loads(row['embedding'])
                     })
-                except:
+                except (json.JSONDecodeError, KeyError) as e:
+                    logger.warning(f"Embedding-Parsing fehlgeschlagen: {e}")
                     pass
             
             conn.close()
@@ -724,3 +689,35 @@ class Database:
         except Exception as e:
             logger.error(f"Fehler beim Laden der Embeddings: {e}")
             return []
+
+    def log_audit_event(self, user_id: str, action: str, resource_id: Optional[str] = None, details: Optional[dict] = None):
+        """Loggt ein Audit-Event"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO audit_log (user_id, action, resource_id, details)
+                VALUES (?, ?, ?, ?)
+            ''', (user_id, action, resource_id, json.dumps(details) if details else None))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Fehler beim Audit-Log: {e}")
+
+    def log_audit_event(self, user_id: str, action: str, resource_id: Optional[str] = None, details: Optional[dict] = None):
+        """Loggt ein Audit-Event"""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO audit_log (user_id, action, resource_id, details)
+                VALUES (?, ?, ?, ?)
+            ''', (user_id, action, resource_id, json.dumps(details) if details else None))
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Fehler beim Audit-Log: {e}")

@@ -118,7 +118,8 @@ class DocumentProcessor:
             # Sprache erkennen
             try:
                 result['detected_language'] = detect(text)
-            except:
+            except Exception as e:
+                logger.debug(f"Spracherkennung fehlgeschlagen: {e}")
                 result['detected_language'] = 'de'
             
             # Datum extrahieren
@@ -181,7 +182,8 @@ class DocumentProcessor:
             {text[:2000]}"""  # Limit context
             
             return client.chat(prompt)
-        except:
+        except Exception as e:
+            logger.warning(f"OCR-Korrektur mit LLM fehlgeschlagen: {e}")
             return None
 
     def _validate_document_with_llm(self, text: str) -> Optional[Dict]:
@@ -209,7 +211,8 @@ class DocumentProcessor:
             if match:
                 return json.loads(match.group(0))
             return None
-        except:
+        except Exception as e:
+            logger.warning(f"LLM-Validierung fehlgeschlagen: {e}")
             return None
 
     def _calculate_confidence(self, result: Dict) -> float:
@@ -363,7 +366,8 @@ class DocumentProcessor:
                         if 1990 <= parsed_date.year <= current_year + 1:
                             if parsed_date not in dates:
                                 dates.append(parsed_date)
-                except:
+                except (ValueError, OverflowError) as e:
+                    logger.debug(f"Datum-Parsing fehlgeschlagen für '{date_str}': {e}")
                     pass
         
         # Sortiere nach Datum (neuestes zuerst ist meist relevant)
@@ -406,7 +410,8 @@ class DocumentProcessor:
                     amount = float(amount_str)
                     if amount not in amounts:
                         amounts.append(amount)
-                except:
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"Betrag-Parsing fehlgeschlagen für '{match}': {e}")
                     pass
         
         return sorted(amounts, reverse=True)  # Größte zuerst

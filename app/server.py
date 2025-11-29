@@ -9,9 +9,13 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 import yaml
+from dotenv import load_dotenv
 
 from flask import Flask, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # Import eigener Module
 import sys
@@ -22,6 +26,9 @@ from app.search_engine import SearchEngine
 from app.statistics_engine import StatisticsEngine
 from app.data_extractor import DataExtractor
 from app.storage_manager import StorageManager
+from app.exporters import DataExporter
+from app.email_receiver import EmailReceiver
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.ollama_client import OllamaClient
 from app.upload_handler import upload_bp
@@ -32,14 +39,27 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
+# Load environment variables
+load_dotenv()
+
 # Flask App
 app = Flask(__name__, static_folder='../static', static_url_path='')
 CORS(app)
+
+# Security Features
+csrf = CSRFProtect(app)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 # Globale Objekte
 db = None
 search_engine = None
 data_extractor = None
+exporter = None
 config = None
 
 # Registriere Blueprints
@@ -70,6 +90,7 @@ def init_app(config_path: str = 'config.yaml'):
     db = Database(config_path)
     search_engine = SearchEngine()
     data_extractor = DataExtractor(config_path)
+    exporter = DataExporter()
     
     # Indexiere Dokumente
     _reindex_search()
@@ -719,6 +740,65 @@ def get_prediction(category):
         logger.error(f"Fehler bei Prognose: {e}")
         return jsonify({'error': str(e)}), 500
 
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/export/excel', methods=['GET'])
+@login_required
+def export_excel():
+    """Exportiert Dokumente als Excel"""
+    try:
+        # Filter Parameter übernehmen
+        category = request.args.get('category')
+        year_str = request.args.get('year')
+        year = int(year_str) if year_str else None
+        
+        # Dokumente laden (ohne Limit für Export)
+        documents = db.search_documents(category=category, year=year, limit=10000)
+        
+        output = exporter.export_to_excel(documents)
+        
+        filename = f"export_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.error(f"Fehler bei Excel Export: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/export/pdf', methods=['GET'])
+@login_required
+def export_pdf():
+    """Exportiert Dokumente als PDF"""
+    try:
+        # Filter Parameter übernehmen
+        category = request.args.get('category')
+        year_str = request.args.get('year')
+        year = int(year_str) if year_str else None
+        
+        # Dokumente laden
+        documents = db.search_documents(category=category, year=year, limit=1000)
+        
+        title = f"Dokumenten-Bericht {year if year else ''} {category if category else ''}"
+        output = exporter.export_to_pdf(documents, title=title)
+        
+        filename = f"report_{datetime.now().strftime('%Y%m%d')}.pdf"
+        
+        return send_file(
+            output,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.error(f"Fehler bei PDF Export: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 def run_server(host: str = '0.0.0.0', port: int = 5000, debug: bool = False):
     """
@@ -732,6 +812,36 @@ def run_server(host: str = '0.0.0.0', port: int = 5000, debug: bool = False):
     app.run(host=host, port=port, debug=debug)
 
 
+def init_scheduler():
+    """Startet Hintergrund-Tasks"""
+    try:
+        scheduler = BackgroundScheduler()
+        email_receiver = EmailReceiver()
+        
+        # Check email interval (default 5 min)
+        interval = config.get('email', {}).get('check_interval', 300)
+        
+        def check_emails():
+            logger.info("Prüfe Emails...")
+            files = email_receiver.fetch_attachments()
+            for f in files:
+                try:
+                    # Import hier um Zyklen zu vermeiden
+                    from app.upload_handler import process_file_logic
+                    logger.info(f"Verarbeite Email-Anhang: {f}")
+                    process_file_logic(f)
+                except Exception as e:
+                    logger.error(f"Fehler bei Email-Verarbeitung: {e}")
+            
+        if config.get('email', {}).get('enabled', False):
+            scheduler.add_job(check_emails, 'interval', seconds=interval)
+            scheduler.start()
+            logger.info(f"Email Scheduler gestartet (Intervall: {interval}s)")
+            
+    except Exception as e:
+        logger.error(f"Fehler beim Starten des Schedulers: {e}")
+
+
 if __name__ == '__main__':
     # Logging
     logging.basicConfig(
@@ -741,6 +851,9 @@ if __name__ == '__main__':
     
     # Initialisiere
     init_app()
+    
+    # Starte Scheduler
+    init_scheduler()
     
     # Starte Server
     run_server(

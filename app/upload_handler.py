@@ -195,6 +195,16 @@ def process_file_logic(filepath: str) -> dict:
             date_document=document_date
         )
         
+        # Audit Log
+        try:
+            from app.audit import log_action
+            log_action(db, "upload_document", str(doc_id), {
+                'filename': Path(filepath).name, 
+                'category': main_category
+            })
+        except Exception as e:
+            logger.warning(f"Audit Log fehlgeschlagen: {e}")
+        
         # Metrics update
         try:
             from app.metrics import DOCUMENT_PROCESSED_TOTAL

@@ -1,162 +1,140 @@
-# Dokumentenverwaltungs-System Konfiguration
-
-# System Einstellungen
-system:
-  scanner:
-    device: "hp"  # Auto-detect HP scanner
-    resolution: 800  # DPI
-    color_mode: "Color"
-    format: "pdf"
-  
-  storage:
-    base_path: "/mnt/documents/storage"
-    data_path: "/mnt/documents/data"
-    structure_file: "/mnt/documents/structure.json"
-    temp_path: "/tmp/scans"
-  
-database:
-  path: "/mnt/documents/database.db"
-
-# Web Server
-web:
-  host: "0.0.0.0"  # Lokales Netzwerk
-  port: 5000
-  debug: false
-  secret_key: "change_this_to_something_secure"  # Für Sessions
-
-# Authentifizierung
+ai:
+  categorization:
+    confidence_threshold: 0.7
+    enabled: true
+    model: paraphrase-multilingual-MiniLM-L12-v2
+  ollama:
+    enabled: true
+    max_tokens: 500
+    model: qwen2.5:7b-q4_K_M
+    num_ctx: 2048
+    temperature: 0.1
+    url: http://localhost:11434
 auth:
   enabled: true
   users:
-    admin: "admin123"  # Default User/Passwort
-
-# OCR Einstellungen
-ocr:
-  engine: "tesseract"  # tesseract oder easyocr
-  languages: ["deu", "eng"]
-  confidence_threshold: 60
-
-# AI-basierte Kategorisierung
-ai:
-  categorization:
-    enabled: true  # AI-Kategorisierung aktiv
-    model: "paraphrase-multilingual-MiniLM-L12-v2"
-    confidence_threshold: 0.7
-  
-  ollama:
-    enabled: true
-    url: "http://localhost:11434"
-    model: "qwen2.5:7b-q4_K_M"  # Quantized version (4GB statt 14GB RAM)
-    temperature: 0.1     # Lower temperature for factual tasks
-    num_ctx: 2048        # Reduced context window for performance
-    max_tokens: 500      # Max output tokens
-
-# Dokument-Kategorien (Hauptkategorien)
+    admin: scrypt:32768:8:1$I4L0npBM0CRP5m1S$83bdd69641f2110692675290c1e48cfee1742fcaf803a3fd8187585485fe28fe4478f62213e2de986dba11a37033841a0066d9218b46441fd2188f33c7218332
 categories:
-  main:
-    - Rechnungen
-    - Verträge
-    - Versicherungen
-    - Bank
-    - Steuer
-    - Medizin
-    - Behörden
-    - Sonstiges
-  
-  # Automatische Subkategorien werden erstellt
   auto_create_subcategories: true
-  
-  # Keywords für Kategorien
   keywords:
-    Rechnungen:
-      - rechnung
-      - invoice
-      - zahlung
-      - betrag
-      - strom
-      - gas
-      - internet
-      - telefon
-      - einkauf
-    
-    Verträge:
-      - vertrag
-      - contract
-      - vereinbarung
-      - laufzeit
-      - kündigung
-      - mietvertrag
-      - arbeitsvertrag
-    
-    Versicherungen:
-      - versicherung
-      - police
-      - beitrag
-      - haftpflicht
-      - krankenversicherung
-      - kfz-versicherung
-      - lebensversicherung
-      - hausratversicherung
-    
     Bank:
-      - kontoauszug
-      - überweisung
-      - lastschrift
-      - dispo
-      - zinsen
-      - depot
-      - kreditkarte
-    
-    Steuer:
-      - steuererklärung
-      - finanzamt
-      - einkommensteuer
-      - steuerbescheid
-      - lohnsteuer
-    
-    Medizin:
-      - arzt
-      - rezept
-      - krankschreibung
-      - befund
-      - krankenhaus
-      - apotheke
-    
+    - kontoauszug
+    - überweisung
+    - lastschrift
+    - dispo
+    - zinsen
+    - depot
+    - kreditkarte
     Behörden:
-      - amt
-      - bescheid
-      - antrag
-      - genehmigung
-      - meldebestätigung
-
-# Datenextraktion
+    - amt
+    - bescheid
+    - antrag
+    - genehmigung
+    - meldebestätigung
+    Medizin:
+    - arzt
+    - rezept
+    - krankschreibung
+    - befund
+    - krankenhaus
+    - apotheke
+    Rechnungen:
+    - rechnung
+    - invoice
+    - zahlung
+    - betrag
+    - strom
+    - gas
+    - internet
+    - telefon
+    - einkauf
+    Steuer:
+    - steuererklärung
+    - finanzamt
+    - einkommensteuer
+    - steuerbescheid
+    - lohnsteuer
+    Versicherungen:
+    - versicherung
+    - police
+    - beitrag
+    - haftpflicht
+    - krankenversicherung
+    - kfz-versicherung
+    - lebensversicherung
+    - hausratversicherung
+    Verträge:
+    - vertrag
+    - contract
+    - vereinbarung
+    - laufzeit
+    - kündigung
+    - mietvertrag
+    - arbeitsvertrag
+  main:
+  - Rechnungen
+  - Verträge
+  - Versicherungen
+  - Bank
+  - Steuer
+  - Medizin
+  - Behörden
+  - Sonstiges
 data_extraction:
-  # Relevante Felder für verschiedene Dokumenttypen
   fields:
     Rechnungen:
-      - betrag
-      - datum
-      - firma
-      - kategorie
-      - zahlungsziel
-    
+    - betrag
+    - datum
+    - firma
+    - kategorie
+    - zahlungsziel
     Versicherungen:
-      - versicherer
-      - police_nummer
-      - beitrag
-      - zahlungsintervall
-      - laufzeit_ende
-    
+    - versicherer
+    - police_nummer
+    - beitrag
+    - zahlungsintervall
+    - laufzeit_ende
     Verträge:
-      - vertragspartner
-      - vertragsbeginn
-      - vertragsende
-      - kündigungsfrist
-      - monatlicher_betrag
-
-# Logging
+    - vertragspartner
+    - vertragsbeginn
+    - vertragsende
+    - kündigungsfrist
+    - monatlicher_betrag
+database:
+  path: data/database.db
+email:
+  check_interval: 300
+  enabled: false
+  host: imap.example.com
+  password: your-password
+  port: 993
+  user: your-email@example.com
 logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
-  file: "/var/log/document-manager/app.log"
-  max_size_mb: 50
   backup_count: 5
+  file: app.log
+  level: INFO
+  max_size_mb: 50
+ocr:
+  confidence_threshold: 60
+  engine: tesseract
+  languages:
+  - deu
+  - eng
+system:
+  scanner:
+    color_mode: Color
+    device: hp
+    format: pdf
+    resolution: 800
+  storage:
+    archive_folder: data/archive
+    base_path: data
+    data_path: data/extracted
+    structure_file: data/structure.json
+    temp_path: data/temp
+    upload_folder: data/uploads
+web:
+  debug: false
+  host: 0.0.0.0
+  port: 5000
+  secret_key: change_this_to_something_secure
