@@ -96,8 +96,14 @@ if [ -d "$EXPO_DIR" ]; then
     echo -e "${CYAN}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
     
-    # Start Expo (foreground, damit man QR sieht)
-    npx expo start --lan
+    # Start Expo
+    if [[ "$1" == "--web" ]]; then
+        echo -e "${GREEN}Starting Expo in WEB mode...${NC}"
+        npx expo start --web
+    else
+        # Start Expo (foreground, damit man QR sieht)
+        npx expo start --lan
+    fi
     
 else
     echo -e "${YELLOW}⚠ Expo App nicht gefunden in: $EXPO_DIR${NC}"
