@@ -456,7 +456,7 @@ Pull Requests willkommen! Für größere Änderungen bitte zuerst ein Issue erst
 
 - 🐛 **Bugs:** [GitHub Issues](https://github.com/moinmoin-64/Autodocumentsorganizer/issues)
 - 💬 **Fragen:** [GitHub Discussions](https://github.com/moinmoin-64/Autodocumentsorganizer/discussions)
-- 📧 **Email:** [Kontakt](mailto:your-email@example.com)
+- 📧 **Email:** [Kontakt](mailto:olistaebler@icloud.com)
 
 ---
 
