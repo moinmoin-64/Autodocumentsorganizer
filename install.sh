@@ -11,10 +11,79 @@ set -e
 # Farben
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
+YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m'
+NC='\033[0;0m'
+
+# -------------------------------
+# Argumente (optional)
+# -------------------------------
+SKIP_OLLAMA=false
+SKIP_EXPO=false
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --skip-ollama) SKIP_OLLAMA=true ; shift ;;
+        --skip-expo)   SKIP_EXPO=true   ; shift ;;
+        *) echo "Unbekannte Option: $1"; exit 1 ;;
+    esac
+done
+
+# -------------------------------
+# Hilfsfunktionen
+# -------------------------------
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+run_with_retry() {
+    local cmd="$1"
+    local retries=${2:-3}
+    local wait_sec=${3:-10}
+    local attempt=0
+    while (( attempt < retries )); do
+        if eval "$cmd"; then
+            return 0
+        else
+            ((attempt++))
+            log WARN "Befehl fehlgeschlagen (Versuch $attempt/$retries). Warte $wait_sec Sekunden..."
+            sleep $wait_sec
+        fi
+    done
+    return 1
+}
+
+# -------------------------------
+# APT-Lock-Handling
+# -------------------------------
+wait_for_apt() {
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
+        log INFO "Warte auf apt-Lock..."
+        sleep 2
+    done
+}
+
+
+# Log‑Datei (immer im Home‑Verzeichnis des Users)
+LOG_FILE="$REAL_HOME/install_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+# Helper‑Funktion für einheitliche Meldungen
+log() {
+    local level="$1"
+    shift
+    local msg="$@"
+    case "$level" in
+        INFO)   echo -e "${CYAN}[INFO]${NC} $msg";;
+        WARN)   echo -e "${YELLOW}[WARN]${NC} $msg";;
+        ERROR)  echo -e "${RED}[ERROR]${NC} $msg";;
+        SUCCESS)echo -e "${GREEN}[OK]${NC} $msg";;
+        *)      echo "$msg";;
+    esac
+}
+
+# Fehler‑Abfang‑Hook – gibt log‑Eintrag und beendet das Skript
+trap 'log ERROR "Ein unerwarteter Fehler trat auf. Siehe $LOG_FILE für Details."; exit 1' ERR
 
 clear
 echo -e "${CYAN}"
@@ -96,18 +165,21 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
 echo -e "${YELLOW}━━━━ Node.js Installation ━━━━${NC}"
 
 # Check if Node.js already installed
-if command -v node &> /dev/null; then
+if command_exists node; then
     NODE_VERSION=$(node -v)
-    echo -e "${GREEN}✓ Node.js bereits installiert: $NODE_VERSION${NC}"
+    log SUCCESS "Node.js bereits installiert: $NODE_VERSION"
 else
-    echo "Installiere Node.js 20.x..."
-    
-    # NodeSource Repository
+    log INFO "Node.js 20.x wird installiert..."
+    # NodeSource Repository (nur einmal ausführen)
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+    wait_for_apt
     apt-get install -y nodejs
-    
-    echo -e "${GREEN}✓ Node.js $(node -v) installiert${NC}"
-    echo -e "${GREEN}✓ npm $(npm -v) installiert${NC}"
+    if command_exists node; then
+        log SUCCESS "Node.js $(node -v) installiert"
+        log SUCCESS "npm $(npm -v) installiert"
+    else
+        log WARN "Node.js Installation scheinbar fehlgeschlagen – prüfen Sie das Log"
+    fi
 fi
 
 systemctl enable redis-server 2>/dev/null || true
@@ -121,38 +193,47 @@ echo ""
 
 echo -e "${YELLOW}━━━━ Ollama Installation ━━━━${NC}"
 
-if command -v ollama &> /dev/null; then
-    echo -e "${GREEN}✓ Ollama bereits installiert${NC}"
+if [ "$SKIP_OLLAMA" = true ]; then
+    log INFO "Ollama-Installation wurde per Argument übersprungen."
 else
-    echo "Installiere Ollama für lokales LLM..."
-    echo -e "${YELLOW}Hinweis: Ollama ist optional - bei Fehler wird übersprungen${NC}"
-    
-    # Retry-Logik mit Timeout
-    MAX_RETRIES=3
-    RETRY_COUNT=0
-    OLLAMA_INSTALLED=false
-    
-    while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$OLLAMA_INSTALLED" = false ]; do
-        echo "Versuch $((RETRY_COUNT + 1))/$MAX_RETRIES..."
-        
-        # Download mit Timeout (5 Minuten)
-        if timeout 300 bash -c 'curl -fsSL https://ollama.com/install.sh | sh' 2>/dev/null; then
-            OLLAMA_INSTALLED=true
-            echo -e "${GREEN}✓ Ollama installiert${NC}"
+    if command_exists ollama; then
+        log SUCCESS "Ollama bereits installiert"
+    else
+        # Prüfe Netzwerkverbindung (ping zum Host)
+        if ping -c 1 -W 3 ollama.com >/dev/null 2>&1; then
+            log INFO "Netzwerk erreichbar – starte Ollama-Installation"
         else
-            RETRY_COUNT=$((RETRY_COUNT + 1))
-            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo -e "${YELLOW}⚠ Fehler - warte 10 Sekunden...${NC}"
-                sleep 10
+            log WARN "Keine Netzwerkverbindung zu ollama.com – überspringe Ollama-Installation"
+            SKIP_OLLAMA=true
+        fi
+
+        if [ "$SKIP_OLLAMA" = false ]; then
+            log INFO "Ollama wird installiert (optional)..."
+            log WARN "Falls die Installation fehlschlägt, wird das System ohne Ollama weitergesetzt."
+            
+            MAX_RETRIES=3
+            RETRY_COUNT=0
+            OLLAMA_INSTALLED=false
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$OLLAMA_INSTALLED" = false ]; do
+                log INFO "Versuch $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+                if timeout 300 bash -c 'curl -fsSL https://ollama.com/install.sh | sh' 2>/dev/null; then
+                    OLLAMA_INSTALLED=true
+                    log SUCCESS "Ollama erfolgreich installiert"
+                else
+                    RETRY_COUNT=$((RETRY_COUNT + 1))
+                    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                        log WARN "Download fehlgeschlagen – warte 10 s und versuche erneut"
+                        sleep 10
+                    fi
+                fi
+            done
+            
+            if [ "$OLLAMA_INSTALLED" = false ]; then
+                log WARN "Ollama konnte nicht installiert werden (Netzwerk‑Problem?)"
+                log INFO "System läuft weiter ohne Ollama‑Funktionalität"
             fi
         fi
-    done
-    
-    if [ "$OLLAMA_INSTALLED" = false ]; then
-        echo -e "${YELLOW}⚠ Ollama Installation fehlgeschlagen (Netzwerk-Problem?)${NC}"
-        echo "  → System funktioniert auch ohne Ollama"
-        echo "  → AI-Features werden deaktiviert"
-        echo "  → Später nachholen mit: curl -fsSL https://ollama.com/install.sh | sh"
     fi
 fi
 
@@ -180,7 +261,15 @@ cd "$PROJECT_DIR"
 
 # Python venv
 if [ ! -d "venv" ]; then
-    sudo -u "$REAL_USER" python3 -m venv venv
+    log INFO "Erstelle Python‑Virtual‑Environment…"
+    if sudo -u "$REAL_USER" python3 -m venv venv; then
+        log SUCCESS "Virtual‑Environment erstellt"
+    else
+        log WARN "Virtual‑Environment konnte nicht erstellt werden – abort"
+        exit 1
+    fi
+else
+    log SUCCESS "Virtual‑Environment existiert bereits"
 fi
 
 echo "Installing Python packages..."
@@ -206,23 +295,29 @@ echo -e "${NC}"
 
 EXPO_DIR="$PROJECT_DIR/mobile/photo_app_expo"
 
-if [ -d "$EXPO_DIR" ]; then
-    echo "Installing Expo dependencies..."
-    cd "$EXPO_DIR"
-    
-    # npm install als User
-    sudo -u "$REAL_USER" npm install
-    
-    # Expo CLI global
-    echo "Installing Expo CLI..."
-    npm install -g expo-cli@latest eas-cli@latest
-    
-    echo -e "${GREEN}✓ Expo App dependencies installed${NC}"
-    echo -e "${GREEN}✓ Expo CLI & EAS CLI ready${NC}"
-    
-    cd "$PROJECT_DIR"
+if [ "$SKIP_EXPO" = true ]; then
+    log INFO "Expo-Setup wurde per Argument übersprungen."
 else
-    echo -e "${YELLOW}⚠ Expo App Verzeichnis nicht gefunden${NC}"
+    if [ -d "$EXPO_DIR" ]; then
+        log INFO "Expo‑Projekt gefunden – installiere Abhängigkeiten"
+        cd "$EXPO_DIR"
+        
+        # npm install als normaler User (nicht root)
+        sudo -u "$REAL_USER" npm install || log WARN "npm install hatte Fehler – prüfen Sie das Log"
+        
+        # Expo CLI global installieren (nur falls nicht vorhanden)
+        if ! command_exists expo; then
+            log INFO "Expo CLI wird global installiert..."
+            npm install -g expo-cli@latest eas-cli@latest || log WARN "Expo CLI Installation fehlgeschlagen"
+        else
+            log SUCCESS "Expo CLI bereits vorhanden"
+        fi
+        
+        log SUCCESS "Expo‑App‑Abhängigkeiten installiert"
+        cd "$PROJECT_DIR"
+    else
+        log WARN "Expo‑App‑Verzeichnis nicht gefunden – überspringe Expo‑Setup"
+    fi
 fi
 
 echo ""
@@ -296,7 +391,14 @@ if [ -f "systemd/document-manager.service" ]; then
     cp systemd/document-manager.service /etc/systemd/system/
     systemctl daemon-reload
     systemctl enable document-manager.service
-    echo -e "${GREEN}✓ Service aktiviert${NC}"
+    log SUCCESS "Systemd Service aktiviert"
+    # Prüfe, ob Service jetzt aktiv ist
+    if systemctl is-active --quiet document-manager.service; then
+        log SUCCESS "Service läuft bereits"
+    else
+        log INFO "Starte Service..."
+        systemctl start document-manager.service && log SUCCESS "Service gestartet" || log WARN "Service konnte nicht gestartet werden"
+    fi
 fi
 
 usermod -a -G scanner,lp "$REAL_USER" 2>/dev/null || true
