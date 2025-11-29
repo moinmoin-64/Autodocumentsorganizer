@@ -236,6 +236,7 @@
                             <h3>Ausgaben-Trends</h3>
                             <select id="stats-year-select"
                                 style="background:var(--bg-secondary); color:var(--text-primary); border:1px solid var(--border-default); padding:0.25rem; border-radius:var(--radius-md);">
+                                <option value="2025" selected>2025</option>
                                 <option value="2024">2024</option>
                                 <option value="2023">2023</option>
                             </select>
@@ -293,11 +294,14 @@
     <!-- Chatbot Button -->
     <button id="chatbotButton" class="chatbot-button" onclick="toggleChatbot()">
         <svg width="50" height="50" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="45" fill="#5B4BF2" />
-            <ellipse cx="50" cy="45" rx="25" ry="30" fill="white" />
-            <circle cx="42" cy="40" r="3" fill="#5B4BF2" />
-            <circle cx="58" cy="40" r="3" fill="#5B4BF2" />
-            <path d="M 40 50 Q 50 55 60 50" stroke="#5B4BF2" fill="none" stroke-width="2" />
+            <!-- Chat Bubble -->
+            <path
+                d="M 20 30 Q 20 20, 30 20 L 70 20 Q 80 20, 80 30 L 80 55 Q 80 65, 70 65 L 45 65 L 30 80 L 30 65 L 30 65 Q 20 65, 20 55 Z"
+                fill="white" stroke="none" />
+            <!-- Typing dots -->
+            <circle cx="40" cy="42" r="4" fill="#5B4BF2" />
+            <circle cx="50" cy="42" r="4" fill="#5B4BF2" />
+            <circle cx="60" cy="42" r="4" fill="#5B4BF2" />
         </svg>
     </button>
 

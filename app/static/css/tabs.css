@@ -13,7 +13,7 @@
 /* Budget Section */
 .budget-section {
     background: var(--white);
-    border: 1 px solid var(--border-default);
+    border: 1px solid var(--border-default);
     border-radius: var(--radius-xl);
     padding: var(--space-4);
     box-shadow: var(--shadow-sm);
