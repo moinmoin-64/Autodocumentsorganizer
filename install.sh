@@ -116,14 +116,45 @@ systemctl start redis-server 2>/dev/null || true
 echo ""
 
 # ==========================================
-# OLLAMA
+# OLLAMA INSTALLATION (Optional, with retry)
 # ==========================================
 
-echo -e "${YELLOW}━━━━ Ollama ━━━━${NC}"
-if ! command -v ollama &> /dev/null; then
-    curl -fsSL https://ollama.com/install.sh | sh
+echo -e "${YELLOW}━━━━ Ollama Installation ━━━━${NC}"
+
+if command -v ollama &> /dev/null; then
+    echo -e "${GREEN}✓ Ollama bereits installiert${NC}"
+else
+    echo "Installiere Ollama für lokales LLM..."
+    echo -e "${YELLOW}Hinweis: Ollama ist optional - bei Fehler wird übersprungen${NC}"
+    
+    # Retry-Logik mit Timeout
+    MAX_RETRIES=3
+    RETRY_COUNT=0
+    OLLAMA_INSTALLED=false
+    
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$OLLAMA_INSTALLED" = false ]; do
+        echo "Versuch $((RETRY_COUNT + 1))/$MAX_RETRIES..."
+        
+        # Download mit Timeout (5 Minuten)
+        if timeout 300 bash -c 'curl -fsSL https://ollama.com/install.sh | sh' 2>/dev/null; then
+            OLLAMA_INSTALLED=true
+            echo -e "${GREEN}✓ Ollama installiert${NC}"
+        else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo -e "${YELLOW}⚠ Fehler - warte 10 Sekunden...${NC}"
+                sleep 10
+            fi
+        fi
+    done
+    
+    if [ "$OLLAMA_INSTALLED" = false ]; then
+        echo -e "${YELLOW}⚠ Ollama Installation fehlgeschlagen (Netzwerk-Problem?)${NC}"
+        echo "  → System funktioniert auch ohne Ollama"
+        echo "  → AI-Features werden deaktiviert"
+        echo "  → Später nachholen mit: curl -fsSL https://ollama.com/install.sh | sh"
+    fi
 fi
-echo -e "${GREEN}✓${NC}"
 
 # ==========================================
 # PROJEKT SETUP
