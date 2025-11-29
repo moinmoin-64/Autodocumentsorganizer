@@ -1,0 +1,45 @@
+name: photo_app
+description: Photo Manager App for OrganisationsAI
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # HTTP & Networking
+  http: ^1.1.0
+  
+  # Image Handling
+  image_picker: ^1.0.4
+  photo_view: ^0.14.0
+  
+  # Storage
+  path_provider: ^2.1.1
+  shared_preferences: ^2.2.2
+  
+  # iOS Cupertino
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  
+  # iOS-Style Fonts
+  fonts:
+    - family: SF Pro Display
+      fonts:
+        - asset: fonts/SFPro-Regular.ttf
+        - asset: fonts/SFPro-Medium.ttf
+          weight: 500
+        - asset: fonts/SFPro-Semibold.ttf
+          weight: 600
+        - asset: fonts/SFPro-Bold.ttf
+          weight: 700

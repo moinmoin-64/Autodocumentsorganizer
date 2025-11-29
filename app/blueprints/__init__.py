@@ -18,6 +18,7 @@ def register_blueprints(app: Flask) -> None:
     from .tags import tags_bp
     from .export import export_bp
     from .chat import chat_bp
+    from .photos import photos_bp
     
     # Registriere alle Blueprints
     app.register_blueprint(documents_bp)
@@ -26,3 +27,4 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(tags_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(photos_bp)

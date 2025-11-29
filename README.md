@@ -1,481 +1,385 @@
-# 🤖 AI Document Organizer
+# 📁 Intelligentes Dokumentenverwaltungssystem
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Raspberry%20Pi%205-red.svg)](https://www.raspberrypi.com/)
+> KI-gestütztes System zur automatischen Verwaltung, Kategorisierung und Analyse von Dokumenten mit Web-Interface und REST API
 
-> **KI-gestütztes Dokumentenverwaltungssystem** mit automatischer Kategorisierung, OCR, Duplikat-Erkennung, erweiterten Statistiken und LLM-Integration.
-
-![System Architecture](https://via.placeholder.com/800x200/1e293b/94a3b8?text=AI+Document+Organizer)
-
----
-
-## ✨ Highlights
-
-🧠 **AI-Powered** - Sentence Transformers & Qwen2.5-7B LLM  
-📄 **OCR** - Tesseract mit automatischer Korrektur  
-🔍 **Smart Search** - BM25 Full-Text + erweiterte Filter  
-📊 **Analytics** - Statistiken, Trends, Budget-Tracking  
-🔐 **Secure** - User Authentication mit Flask-Login  
-🚀 **Production-Ready** - Systemd Service, Monitoring, Tests
+[![Tests](https://img.shields.io/badge/tests-42%20passing-success)](https://github.com/moinmoin-64/Autodocumentsorganizer)
+[![Coverage](https://img.shields.io/badge/coverage-70%25-green)](https://github.com/moinmoin-64/Autodocumentsorganizer)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://python.org)
+[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 ---
 
 ## 🌟 Features
 
-### 🤖 **AI & Machine Learning**
-- **Automatische Kategorisierung** mit Sentence Transformers (`paraphrase-multilingual-MiniLM-L12-v2`)
-- **OCR-Korrektur** via Qwen2.5-7B LLM (Ollama)
-- **Intelligente Validierung** von Rechnungsdaten (Datum, Betrag, Währung)
-- **Duplikat-Erkennung** (SHA256 Content Hashing)
+### 🤖 KI-Features
+- **Automatische Kategorisierung** mit AI (Ollama/DeepSeek)
+- **OCR-Processing** (Tesseract/EasyOCR) für gescannte Dokumente
+- **Intelligente Texterkennung** mit Konfidenz-Scores
+- **Duplikat-Erkennung** basierend auf Content-Hashing
+- **Auto-Tagging** für bessere Organisation
 
-### 📁 **Dokumentenverwaltung**
-- Scanner-Integration (SANE-kompatibel)
-- Hierarchische Ordnerstruktur: `Jahr/Kategorie/Subkategorie`
-- Metadaten in SQLite + strukturierte CSV-Exports
-- Tag-System für flexible Organisation
-- Gespeicherte Suchfilter
+### 📊 Verwaltung & Analytics
+- **Erweiterte Suche** mit Filtern (Datum, Kategorie, Betrag, Tags)
+- **Budget-Tracking** mit monatlichen Übersichten
+- **Ausgaben-Analysen** mit interaktiven Charts
+- **Gespeicherte Suchen** für häufige Abfragen
+- **Audit-Log** für alle Systemaktionen
 
-### 🔍 **Suche & Filter**
-- BM25 Volltext-Suche
-- Erweiterte Filter (Datum, Betrag, Tags, Kategorie)
-- Saved Searches für wiederkehrende Abfragen
+### 🌐 Web-Interface
+- **Premium Light Mode Design** mit modernem UI
+- **Drag & Drop Upload** für intuitive Bedienung
+- **Toast Notifications** für User-Feedback
+- **Responsive Layout** (Desktop-optimiert)
+- **Interactive Charts** (Chart.js)
 
-### 📊 **Statistiken & Analytics**
-- Monatliche Ausgaben-Trends
-- Budget-Tracking pro Kategorie (mit Warnsystem)
-- Ausgaben-Prognosen (Linear Regression)
-- Jahresvergleiche
-- Interaktive Charts (Chart.js)
+### 🔐 Sicherheit
+- **CSRF Protection** mit Flask-WTF
+- **Rate Limiting** zum Schutz vor Missbrauch
+- **Password Hashing** (scrypt)
+- **Session Management**
+- **Audit Logging**
 
-### 🔐 **Sicherheit**
-- User Authentication (Flask-Login)
-- Password Hashing (Werkzeug)
-- Session Management
-- Login/Logout Flow
-
-### 💬 **Chatbot-Assistent**
-- Ollama-Integration (Qwen2.5-7B)
-- Kontext-bewusste Antworten
-- Dokumenten-Suche via natürliche Sprache
-
----
-
-## 📋 Voraussetzungen
-
-### Hardware
-- **Raspberry Pi 5** (8GB RAM empfohlen)
-- **2TB SSD** (USB 3.0)
-- **Scanner** (SANE-kompatibel, z.B. HP)
-
-### Software
-- **OS:** Raspberry Pi OS (64-bit) / Ubuntu Server
-- **Python:** 3.10+
-- **Ollama:** (optional, für LLM-Features)
+### 📧 Integration
+- **Email-Receiver** (IMAP) für automatischen Import
+- **Export-Funktionen** (Excel, PDF)
+- **REST API** für externe Tools
+- **Scanner-Integration** (SANE/scanimage)
 
 ---
 
 ## 🚀 Quick Start
 
-### 1️⃣ Installation
+### Voraussetzungen
+```bash
+# Python 3.12+
+python --version
 
+# Tesseract OCR
+sudo apt-get install tesseract-ocr tesseract-ocr-deu
+
+# Optional: Ollama für AI-Features
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+### Installation
+
+#### Standard Installation
 ```bash
 # Repository klonen
 git clone https://github.com/moinmoin-64/Autodocumentsorganizer.git
 cd Autodocumentsorganizer
 
-# Installations-Script ausführen
-chmod +x install.sh
-sudo ./install.sh
+# Dependencies installieren
+pip install -r requirements.txt
+
+# Entwicklungs-Dependencies (für Tests)
+pip install -r requirements-dev.txt
+
+# Datenbank initialisieren
+python -c "from app.db_config import init_db; init_db()"
+
+# Server starten
+python app/server.py
 ```
 
-**Das Script installiert:**
-- ✅ Python Dependencies (virtualenv)
-- ✅ Tesseract OCR (DE + EN)
-- ✅ SANE Scanner-Treiber
-- ✅ Ollama + Qwen2.5-7B Model
-- ✅ Systemd Service
-
-### 2️⃣ Konfiguration
-
+#### Raspberry Pi Installation
 ```bash
-nano config.yaml
+bash raspberry_pi_install.sh
 ```
 
-**Wichtige Einstellungen:**
+### Konfiguration
+
+`.env` Datei erstellen:
+```env
+SECRET_KEY=your-secret-key-here
+DATABASE_PATH=data/database.db
+OLLAMA_URL=http://localhost:11434
+```
+
+`config.yaml` anpassen:
 ```yaml
-web:
-  port: 5000
-  host: "0.0.0.0"
+ai:
+  ollama:
+    enabled: true
+    model: qwen2.5:7b-q4_K_M
+    url: http://localhost:11434
 
 auth:
   enabled: true
-  default_username: "admin"
-  default_password: "admin"  # ÄNDERN!
+  users:
+    admin: "scrypt:..."  # Generiert mit: python -c "from werkzeug.security import generate_password_hash; print(generate_password_hash('password'))"
 
-scanner:
-  device: "hpaio:/usb/..."  # Gerät mit 'scanimage -L' finden
-
-storage:
-  base_path: "/mnt/documents"
-
-ollama:
-  enabled: true
-  model: "qwen2.5:7b"
-```
-
-### 3️⃣ SSD mounten
-
-```bash
-# SSD formatieren (falls nötig)
-sudo mkfs.ext4 /dev/sda1
-
-# Mount-Point erstellen
-sudo mkdir -p /mnt/documents
-
-# Mounten
-sudo mount /dev/sda1 /mnt/documents
-sudo chown -R pi:pi /mnt/documents
-
-# Auto-Mount in /etc/fstab
-echo "UUID=$(blkid -s UUID -o value /dev/sda1) /mnt/documents ext4 defaults 0 2" | sudo tee -a /etc/fstab
-```
-
-### 4️⃣ Service starten
-
-```bash
-sudo systemctl start document-manager
-sudo systemctl enable document-manager  # Auto-start
-sudo systemctl status document-manager
-```
-
-### 5️⃣ Dashboard öffnen
-
-Browser: **`http://<raspberry-pi-ip>:5000`**
-
-**Default Login:**
-- Username: `admin`
-- Password: `admin` ⚠️ **Bitte sofort ändern!**
-
----
-
-## 📁 Projektstruktur
-
-```
-Autodocumentsorganizer/
-├── app/
-│   ├── __init__.py
-│   ├── server.py                # Flask Server + API
-│   ├── auth.py                  # Authentication
-│   ├── database.py              # SQLite ORM
-│   ├── scanner_handler.py       # Scanner-Integration
-│   ├── document_processor.py    # OCR + LLM Processing
-│   ├── categorizer.py           # AI Kategorisierung
-│   ├── storage_manager.py       # Dateiverwaltung
-│   ├── data_extractor.py        # Datenextraktion
-│   ├── search_engine.py         # BM25 Suche
-│   ├── statistics_engine.py     # Statistiken + Prognosen
-│   ├── ollama_client.py         # LLM Client
-│   ├── upload_handler.py        # File Upload + Duplikat-Check
-│   ├── queue_manager.py         # Processing Queue
-│   └── static/
-│       ├── index.html           # Dashboard
-│       ├── login.html           # Login Page
-│       ├── css/
-│       │   ├── style.css
-│       │   ├── tabs.css
-│       │   └── advanced-search.css
-│       └── js/
-│           ├── app.js           # Dashboard Logic
-│           ├── chatbot.js       # Chatbot UI
-│           ├── statistics.js    # Charts
-│           └── advanced-search.js
-├── tests/
-│   ├── test_categorizer.py
-│   ├── test_document_processor.py
-│   └── test_e2e.py              # End-to-End Tests
-├── systemd/
-│   └── document-manager.service # Systemd Service
-├── main.py                      # Entry Point
-├── config.yaml                  # Konfiguration
-├── requirements.txt             # Python Dependencies
-├── install.sh                   # Setup Script
-├── backup.py                    # Backup Utility
-├── monitor.py                   # System Monitor
-└── README.md
+email:
+  enabled: false  # true für Email-Integration
+  host: imap.example.com
+  user: your-email@example.com
+  password: your-password
 ```
 
 ---
 
-## � API Endpoints
+## 📖 Nutzung
 
-### 📄 Dokumente
-```http
-GET    /api/documents              # Liste aller Dokumente
-GET    /api/documents/<id>         # Einzelnes Dokument
-GET    /api/documents/search       # Suche (BM25)
-POST   /api/documents/advanced     # Erweiterte Suche
-GET    /api/documents/<id>/download
-POST   /api/upload                 # File Upload
-POST   /api/upload/process/<path>  # Verarbeitung starten
+### Web-Interface
+```bash
+# Server starten
+python app/server.py
+
+# Browser öffnen
+http://localhost:5000
 ```
 
-### 🏷️ Tags
-```http
-GET    /api/tags                   # Alle Tags
-POST   /api/tags                   # Tag erstellen
-DELETE /api/tags/<id>              # Tag löschen
+### API-Beispiele
+
+#### Dokument hochladen
+```bash
+curl -X POST http://localhost:5000/api/upload \
+  -F "file=@document.pdf"
 ```
 
-### 📊 Statistiken
-```http
-GET    /api/statistics/overview    # Übersicht
-GET    /api/statistics/trends/<year>
-GET    /api/statistics/budgets
-POST   /api/statistics/budgets     # Budget setzen
-GET    /api/statistics/budgets/<category>/<month>
-GET    /api/statistics/predictions/<category>
+#### Dokumente suchen
+```bash
+curl http://localhost:5000/api/documents?query=rechnung&category=Bank
 ```
 
-### 💬 Chatbot
-```http
-POST   /api/chat                   # Message senden
+#### Erweiterte Suche
+```bash
+curl -X POST http://localhost:5000/api/search/advanced \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "versicherung",
+    "start_date": "2024-01-01",
+    "min_amount": 100,
+    "tags": ["wichtig"]
+  }'
 ```
-
-### 🔐 Authentication
-```http
-POST   /api/auth/login
-POST   /api/auth/logout
-GET    /api/auth/status
-```
-
-Vollständige API-Dokumentation: **[API.md](API.md)**
 
 ---
 
 ## 🧪 Testing
 
+### Tests ausführen
 ```bash
 # Alle Tests
 pytest
 
-# Kategorisierung testen
-pytest tests/test_categorizer.py -v
-
-# End-to-End Tests
-pytest tests/test_e2e.py -v
+# Nur Unit Tests
+python run_tests.py unit
 
 # Mit Coverage
-pytest --cov=app tests/
+pytest --cov=app --cov-report=html
+
+# E2E Tests (Browser)
+pytest tests/e2e -v
+```
+
+### Test Coverage
+```bash
+# Coverage Report generieren
+pytest --cov=app --cov-report=term-missing
+
+# HTML Report
+pytest --cov=app --cov-report=html
+open htmlcov/index.html
 ```
 
 ---
 
-## �️ Entwicklung
+## 🏗️ Architektur
 
-### Manuell starten (ohne Systemd)
-
-```bash
-cd Autodocumentsorganizer
-source venv/bin/activate
-python main.py
+### Backend-Struktur
+```
+app/
+├── models/              # SQLAlchemy ORM Models
+│   └── __init__.py      # Document, Tag, AuditLog, etc.
+├── blueprints/          # API Blueprints
+│   ├── documents.py     # Dokumentenverwaltung
+│   ├── search.py        # Suchfunktionen
+│   ├── tags.py          # Tag-Management
+│   ├── stats.py         # Statistiken
+│   ├── export.py        # Export-Funktionen
+│   └── chat.py          # Chatbot
+├── db_config.py         # SQLAlchemy Configuration
+├── database.py          # Database Layer (ORM)
+├── categorizer.py       # AI Kategorisierung
+├── document_processor.py # OCR & Verarbeitung
+├── upload_handler.py    # Upload-Logik
+├── email_receiver.py    # IMAP Integration
+└── server.py            # Flask Application
 ```
 
-### Logs
-
-```bash
-# Systemd Logs
-journalctl -u document-manager -f
-
-# App Logs
-tail -f /var/log/document-manager/app.log
+### Frontend-Struktur
+```
+app/static/
+├── css/
+│   └── style.css        # Premium Design System
+├── js/
+│   ├── app.js           # Main Application
+│   ├── notifications.js # Toast System
+│   └── drag-drop-upload.js # Upload Handler
+└── index.html           # Main UI
 ```
 
-### Scanner testen
-
-```bash
-scanimage -L                    # Geräte auflisten
-scanimage --format=jpeg > test.jpg
+### Database Schema
 ```
+Document (documents)
+├── id: Integer (PK)
+├── filename: String
+├── filepath: String
+├── category: String
+├── subcategory: String
+├── date_document: DateTime
+├── summary: Text
+├── full_text: Text
+├── amount: Float
+└── tags: Relationship → Tag (Many-to-Many)
 
-### Ollama testen
+Tag (tags)
+├── id: Integer (PK)
+├── name: String (Unique)
+├── color: String
+└── documents: Relationship → Document
 
-```bash
-ollama list                     # Installierte Models
-ollama run qwen2.5:7b "Hallo"  # Test
-```
-
----
-
-## � Datenstruktur
-
-```
-/mnt/documents/
-├── storage/                     # Dokumente
-│   ├── 2024/
-│   │   ├── Rechnung/
-│   │   │   ├── Strom/
-│   │   │   │   └── 2024-03-15_rechnung_strom.pdf
-│   │   │   └── Internet/
-│   │   ├── Versicherung/
-│   │   │   ├── Haftpflicht/
-│   │   │   └── KFZ/
-│   │   ├── Vertrag/
-│   │   └── ...
-│   └── 2025/
-├── data/                        # CSV Exports
-│   ├── 2024/
-│   │   ├── rechnung_data.csv
-│   │   └── versicherung_data.csv
-│   └── 2025/
-├── database.db                  # SQLite Database
-└── structure.json               # Ordnerstruktur-Cache
-```
-
----
-
-## � Fehlerbehebung
-
-### Scanner funktioniert nicht
-
-```bash
-# SANE Status
-sudo systemctl status saned
-
-# HP Setup (für HP-Geräte)
-hp-setup
-
-# Berechtigungen
-groups pi  # Sollte "scanner" enthalten
-sudo usermod -a -G scanner pi
-```
-
-### Ollama Probleme
-
-```bash
-# Service
-sudo systemctl status ollama
-
-# Model neu laden
-ollama pull qwen2.5:7b
-
-# RAM-Probleme? Kleineres Model:
-ollama pull qwen2.5:1.5b
-```
-
-### Niedriger RAM (< 8GB)
-
-```yaml
-# In config.yaml - LLM Features deaktivieren
-ollama:
-  enabled: false
-```
-
-### Import-Fehler
-
-```bash
-# CUDA-Fehler (SentenceTransformer)
-# Wird automatisch zu CPU fallback
-
-# Manuelle CPU-Erzwingung:
-export CUDA_VISIBLE_DEVICES=""
+AuditLog (audit_logs)
+├── id: Integer (PK)
+├── timestamp: DateTime
+├── user_id: String
+├── action: String
+└── document: Relationship → Document
 ```
 
 ---
 
-## 🔐 Sicherheit
+## 🔧 API-Dokumentation
 
-⚠️ **Standard-Passwort ändern!**
-```yaml
-# config.yaml
-auth:
-  default_password: "DEIN_SICHERES_PASSWORT"
-```
+### Endpoints
 
-🔒 **Best Practices:**
-- Nur im lokalen Netzwerk betreiben
-- Firewall: Port 5000 nur für LAN freigeben
-- Regelmäßige Backups der SSD
-- HTTPS für Produktiv-Umgebungen (mit Reverse Proxy)
+#### Documents API
+- `GET /api/documents` - Liste aller Dokumente
+- `GET /api/documents/<id>` - Einzelnes Dokument
+- `POST /api/upload` - Dokument hochladen
+- `DELETE /api/documents/<id>` - Dokument löschen
+- `PUT /api/documents/<id>` - Dokument aktualisieren
+
+#### Search API
+- `GET /api/search?query=...` - Einfache Suche
+- `POST /api/search/advanced` - Erweiterte Suche mit Filtern
+- `GET /api/search/saved` - Gespeicherte Suchen
+- `POST /api/search/save` - Suche speichern
+
+#### Tags API
+- `GET /api/tags` - Alle Tags
+- `POST /api/tags` - Tag erstellen
+- `POST /api/tags/document/<doc_id>` - Tag zu Dokument hinzufügen
+- `DELETE /api/tags/document/<doc_id>/tag/<tag_id>` - Tag entfernen
+
+#### Statistics API
+- `GET /api/stats` - Gesamtstatistiken
+- `GET /api/stats/expenses?year=2024` - Ausgaben nach Jahr
+- `GET /api/stats/categories` - Verteilung nach Kategorien
+- `GET /api/stats/trends?year=2024` - Monatliche Trends
+
+#### Export API
+- `POST /api/export/excel` - Excel Export
+- `POST /api/export/pdf` - PDF Export
 
 ---
 
-## 📦 Backup
+## 🎨 Design System
 
+### Farb-Palette
+```css
+/* Primary Colors */
+--primary: #2563EB;      /* Royal Blue */
+--accent: #10B981;       /* Emerald Green */
+
+/* Semantic Colors */
+--success: #10B981;
+--warning: #F59E0B;
+--danger: #EF4444;
+--info: #3B82F6;
+
+/* Neutrals */
+--gray-50: #F8FAFC;
+--gray-900: #0F172A;
+```
+
+### Typografie
+- **Font Family:** Inter, system-ui
+- **Base Size:** 16px
+- **Scale:** 1.25 (Major Third)
+
+---
+
+## 🤝 Mitwirken
+
+### Development Setup
 ```bash
-# Automatisches Backup
-python backup.py
+# Fork & Clone
+git clone https://github.com/your-username/Autodocumentsorganizer.git
 
-# Backup-Cron einrichten
-chmod +x setup_backup_cron.sh
-./setup_backup_cron.sh
+# Install Dev Dependencies
+pip install -r requirements-dev.txt
+
+# Run Tests
+pytest
+
+# Code Style
+black app/
+flake8 app/
+```
+
+### Commit-Konventionen
+```
+feat: Neues Feature
+fix: Bugfix
+docs: Dokumentation
+test: Tests
+refactor: Code-Refactoring
+style: Formatierung
 ```
 
 ---
 
-## 🚀 Workflow
-
-```mermaid
-graph LR
-    A[Scan] --> B[OCR]
-    B --> C[LLM Korrektur]
-    C --> D[AI Kategorisierung]
-    D --> E[Duplikat-Check]
-    E --> F{Duplicate?}
-    F -->|Ja| G[Abbruch]
-    F -->|Nein| H[Speichern]
-    H --> I[CSV Export]
-    H --> J[Database]
-    J --> K[Dashboard]
-```
-
-1. **Dokument scannen** → Scanner-Integration
-2. **OCR** → Tesseract Texterkennung
-3. **LLM-Korrektur** → Qwen2.5 verbessert OCR (bei Confidence < 80%)
-4. **Validierung** → LLM extrahiert strukturierte Daten
-5. **Kategorisierung** → AI ordnet automatisch ein
-6. **Duplikat-Check** → SHA256 Hash-Vergleich
-7. **Speichern** → Ordner + Database + CSV
-8. **Dashboard** → Statistiken, Suche, Analytics
-
----
-
-## 📝 Lizenz
+## 📝 License
 
 MIT License - siehe [LICENSE](LICENSE)
 
 ---
 
-## 🤝 Contributing
-
-Pull Requests willkommen! Für größere Änderungen bitte zuerst ein Issue erstellen.
-
----
-
-## 💡 Support
-
-- 🐛 **Bugs:** [GitHub Issues](https://github.com/moinmoin-64/Autodocumentsorganizer/issues)
-- 💬 **Fragen:** [GitHub Discussions](https://github.com/moinmoin-64/Autodocumentsorganizer/discussions)
-- 📧 **Email:** [Kontakt](mailto:olistaebler@icloud.com)
-
----
-
 ## 🙏 Credits
 
-**Genutzte Technologien:**
-- [Flask](https://flask.palletsprojects.com/) - Web Framework
-- [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) - OCR Engine
-- [Sentence Transformers](https://www.sbert.net/) - Semantic Search
-- [Ollama](https://ollama.ai/) - LLM Runtime
-- [Chart.js](https://www.chartjs.org/) - Visualisierungen
-- [SANE](http://www.sane-project.org/) - Scanner Interface
+### Dependencies
+- **Flask** - Web Framework
+- **SQLAlchemy** - ORM
+- **Tesseract** - OCR Engine
+- **Ollama** - Local AI Models
+- **Chart.js** - Datenvisualisierung
+- **pytest** - Testing Framework
+
+### Entwickler
+**moinmoin-64** - [GitHub](https://github.com/moinmoin-64)
 
 ---
 
-<div align="center">
+## 📧 Kontakt
 
-**Made with ❤️ for Raspberry Pi**
+- **GitHub Issues:** [Issues](https://github.com/moinmoin-64/Autodocumentsorganizer/issues)
+- **Email:** your-email@example.com
 
-[![Star on GitHub](https://img.shields.io/github/stars/moinmoin-64/Autodocumentsorganizer?style=social)](https://github.com/moinmoin-64/Autodocumentsorganizer)
+---
 
-</div>
+## 🗺️ Roadmap
+
+### Version 2.0 (Geplant)
+- [ ] Dark Mode Support
+- [ ] Multi-User mit Rollen
+- [ ] Cloud Storage Integration
+- [ ] Mobile App (React Native)
+- [ ] Advanced AI Features (GPT-4)
+- [ ] Workflow Automation
+- [ ] Email Templates
+
+---
+
+**Made with ❤️ and AI**

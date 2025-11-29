@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fotos - Dokumentenverwaltung</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* iOS-Style Photo Grid */
+        .photo-container {
+            padding: 20px;
+            background: #F2F2F7;
+            min-height: 100vh;
+        }
+
+        .photo-header {
+            margin-bottom: 24px;
+        }
+
+        .photo-header h1 {
+            font-size: 34px;
+            font-weight: 700;
+            margin: 0 0 4px 0;
+            color: #000;
+        }
+
+        .photo-header .item-count {
+            font-size: 13px;
+            color: #8E8E93;
+        }
+
+        .photo-actions {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .photo-actions button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        .photo-actions button:hover {
+            opacity: 0.8;
+        }
+
+        .photo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 2px;
+            background: #fff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .photo-item {
+            aspect-ratio: 1;
+            overflow: hidden;
+            cursor: pointer;
+            position: relative;
+            background: #E5E5EA;
+        }
+
+        .photo-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.2s;
+        }
+
+        .photo-item:hover img {
+            transform: scale(1.05);
+        }
+
+        .photo-item.loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Fullscreen Viewer */
+        .photo-viewer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000;
+            z-index: 9999;
+        }
+
+        .photo-viewer.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .photo-viewer img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .photo-viewer-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            z-index: 10000;
+        }
+
+        .viewer-btn {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border: none;
+            color: white;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: background 0.2s;
+        }
+
+        .viewer-btn:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        /* QR Code Overlay */
+        .qr-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-overlay.active {
+            display: flex;
+        }
+
+        .qr-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .qr-content h2 {
+            margin: 0 0 16px 0;
+            font-size: 24px;
+        }
+
+        .qr-content p {
+            color: #666;
+            margin-bottom: 24px;
+        }
+
+        .qr-code {
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+        }
+
+        .close-qr {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+        }
+
+        /* QR Button - Bottom Left */
+        .qr-button {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            background: #007AFF;
+            color: white;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 12px rgba(0, 122, 255, 0.4);
+            transition: transform 0.2s;
+            z-index: 1000;
+        }
+
+        .qr-button:hover {
+            transform: scale(1.1);
+        }
+
+        /* Loading */
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007AFF;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <h1><i class="fas fa-images"></i> Fotomediathek</h1>
+            </div>
+            <div class="header-right">
+                <button onclick="window.location.href='/'" class="btn btn-secondary">
+                    <i class="fas fa-home"></i> Dashboard
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="photo-container">
+        <div class="photo-header">
+            <h1>Library</h1>
+            <div class="item-count" id="itemCount">0 Items</div>
+        </div>
+
+        <div class="photo-actions">
+            <button onclick="uploadPhoto()">
+                <i class="fas fa-upload"></i> Foto hochladen
+            </button>
+            <button onclick="location.reload()">
+                <i class="fas fa-sync"></i> Aktualisieren
+            </button>
+        </div>
+
+        <div class="photo-grid" id="photoGrid">
+            <!-- Photos will be loaded here -->
+        </div>
+    </main>
+
+    <!-- Fullscreen Viewer -->
+    <div class="photo-viewer" id="photoViewer">
+        <div class="photo-viewer-controls">
+            <button class="viewer-btn" onclick="closeViewer()">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <button class="viewer-btn" onclick="downloadPhoto()">
+                <i class="fas fa-download"></i>
+            </button>
+        </div>
+        <img id="viewerImage" src="" alt="Photo">
+    </div>
+
+    <!-- QR Code Overlay -->
+    <div class="qr-overlay" id="qrOverlay">
+        <div class="qr-content">
+            <h2><i class="fas fa-mobile-alt"></i> Mobile App</h2>
+            <p>Scanne den QR-Code mit deinem Smartphone, um die Photo Manager App herunterzuladen.</p>
+            <div class="qr-code" id="qrCode"></div>
+            <p style="font-size: 14px; color: #999;">
+                Die App ist für iOS und Android verfügbar.
+            </p>
+            <button class="close-qr" onclick="closeQR()">Schließen</button>
+        </div>
+    </div>
+
+    <!-- QR Button (Bottom Left) -->
+    <button class="qr-button" onclick="showQR()" title="Mobile App herunterladen">
+        <i class="fas fa-qrcode"></i>
+    </button>
+
+    <!-- Hidden File Input -->
+    <input type="file" id="fileInput" accept="image/*" style="display:none;" onchange="handleFileSelect(event)">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        let currentPhotos = [];
+        let currentPhotoIndex = 0;
+
+        // Load Photos
+        async function loadPhotos() {
+            try {
+                const response = await fetch('/api/photos?limit=1000');
+                const data = await response.json();
+
+                currentPhotos = data.photos;
+                document.getElementById('itemCount').textContent = `${data.total} Items`;
+
+                const grid = document.getElementById('photoGrid');
+                grid.innerHTML = '';
+
+                currentPhotos.forEach((photo, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'photo-item loading';
+
+                    const img = document.createElement('img');
+                    img.src = photo.thumbnail_url;
+                    img.alt = photo.filename;
+                    img.onload = () => item.classList.remove('loading');
+                    img.onclick = () => viewPhoto(index);
+
+                    item.appendChild(img);
+                    grid.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Load error:', error);
+                window.notifications.show('Fehler beim Laden der Fotos', 'error');
+            }
+        }
+
+        // View Photo
+        function viewPhoto(index) {
+            currentPhotoIndex = index;
+            const photo = currentPhotos[index];
+            document.getElementById('viewerImage').src = photo.url;
+            document.getElementById('photoViewer').classList.add('active');
+        }
+
+        // Close Viewer
+        function closeViewer() {
+            document.getElementById('photoViewer').classList.remove('active');
+        }
+
+        // Download Current Photo
+        async function downloadPhoto() {
+            const photo = currentPhotos[currentPhotoIndex];
+            try {
+                const response = await fetch(photo.url);
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = photo.filename;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                window.notifications.show('Foto heruntergeladen', 'success');
+            } catch (error) {
+                console.error('Download error:', error);
+                window.notifications.show('Download fehlgeschlagen', 'error');
+            }
+        }
+
+        // Upload Photo
+        function uploadPhoto() {
+            document.getElementById('fileInput').click();
+        }
+
+        async function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('date', new Date().toISOString());
+
+            try {
+                window.notifications.show('Uploading...', 'info');
+                const response = await fetch('/api/photos/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    window.notifications.show('Foto hochgeladen!', 'success');
+                    loadPhotos();
+                } else {
+                    throw new Error('Upload failed');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                window.notifications.show('Upload fehlgeschlagen', 'error');
+            }
+
+            event.target.value = '';
+        }
+
+        // QR Code Functions
+        function showQR() {
+            const overlay = document.getElementById('qrOverlay');
+            const qrCodeDiv = document.getElementById('qrCode');
+
+            // Clear previous QR
+            qrCodeDiv.innerHTML = '';
+
+            // Generate QR Code (link to Flutter app download)
+            const serverUrl = window.location.origin;
+            const appDownloadUrl = `${serverUrl}/download/photo-app.apk`;
+
+            new QRCode(qrCodeDiv, {
+                text: appDownloadUrl,
+                width: 256,
+                height: 256,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            overlay.classList.add('active');
+        }
+
+        function closeQR() {
+            document.getElementById('qrOverlay').classList.remove('active');
+        }
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (document.getElementById('photoViewer').classList.contains('active')) {
+                if (e.key === 'Escape') closeViewer();
+                if (e.key === 'ArrowLeft' && currentPhotoIndex > 0) {
+                    viewPhoto(currentPhotoIndex - 1);
+                }
+                if (e.key === 'ArrowRight' && currentPhotoIndex < currentPhotos.length - 1) {
+                    viewPhoto(currentPhotoIndex + 1);
+                }
+            }
+        });
+
+        // Load photos on page load
+        loadPhotos();
+    </script>
+</body>
+
+</html>

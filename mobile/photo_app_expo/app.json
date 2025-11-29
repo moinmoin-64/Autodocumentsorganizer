@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "Photo Manager",
+    "slug": "photo-manager",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#007AFF"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.organisationsai.photomanager",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Wir benötigen Zugriff auf die Kamera, um Fotos aufzunehmen.",
+        "NSPhotoLibraryUsageDescription": "Wir benötigen Zugriff auf deine Fotos, um sie hochzuladen."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#007AFF"
+      },
+      "package": "com.organisationsai.photomanager",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        " android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Kamera für Fotos benötigt"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Zugriff auf Fotos für Upload"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id-here"
+      }
+    }
+  }
+}
