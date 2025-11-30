@@ -23,8 +23,9 @@ python-docx==1.1.0
 PyPDF2==3.0.1
 pdfplumber==0.10.3
 
-# Data Analysis & Export
-pandas==2.1.4
+# Data Analysis & Export (Raspberry Pi optimiert)
+# Nutze ältere pandas-Version mit pre-built ARM wheels
+pandas==2.0.3  # Hat pre-built wheels für ARM64
 xlsxwriter==3.1.9
 reportlab==4.0.8
 
@@ -38,19 +39,20 @@ colorlog==6.8.0
 # System Monitor
 psutil==5.9.6
 
-# Image Processing (OCR Pre-Processing)
-opencv-python==4.8.1.78
+# Image Processing (Raspberry Pi optimiert)
+# Headless version - keine GUI, kleineres Package
+opencv-python-headless==4.8.1.78
 
 # Metrics & Monitoring
 prometheus-client==0.19.0
 
-# Advanced OCR
-easyocr==1.7.1
+# Advanced OCR (OPTIONAL - sehr groß!)
+# easyocr==1.7.1  # DEAKTIVIERT - wird nicht zwingend benötigt
 
-# Semantic Search
-sentence-transformers>=3.0.0
-numpy==1.26.0
-scikit-learn==1.3.2
+# Semantic Search (OPTIONAL - für bessere Suche)
+# sentence-transformers>=3.0.0  # DEAKTIVIERT - sehr groß
+numpy>=1.24.0  # Flexiblere Version
+scikit-learn>=1.3.0  # Flexiblere Version
 
 # ORM & Database Migrations
 SQLAlchemy==2.0.23
