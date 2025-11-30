@@ -2,76 +2,12 @@
 Documents Blueprint
 API-Endpoints für Dokument-Verwaltung
 """
-from flask import Blueprint, jsonify, request, send_file, current_app
+from flask import Blueprint, request, send_file, current_app
 from pathlib import Path
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 
-documents_bp = Blueprint('documents', __name__, url_prefix='/api/documents')
-logger = logging.getLogger(__name__)
-
-
-@documents_bp.route('/', methods=['GET'])
-def list_documents() -> tuple[Dict[str, Any], int]:
-    """
-    GET /api/documents
-    Liste aller Dokumente mit optionalen Filtern
-    
-    Query Parameters:
-        limit: Anzahl Dokumente (default: 50)
-        offset: Offset für Pagination (default: 0)
-        category: Filter nach Kategorie
-        year: Filter nach Jahr
-        query: Volltextsuche
-    
-    Returns:
-        JSON mit Dokumenten-Liste
-    """
-    try:
-        from app.database import Database
-        
-        db = Database()
-        
-        # Query-Parameter
-        limit = int(request.args.get('limit', 50))
-        offset = int(request.args.get('offset', 0))
-        category = request.args.get('category')
-        year = request.args.get('year')
-        query = request.args.get('query')
-        
-        # Build filter kwargs
-        kwargs = {}
-        if category:
-            kwargs['category'] = category
-        if year:
-            kwargs['year'] = int(year)
-        if query:
-            kwargs['query'] = query
-        
-        # Get documents
-        documents = db.search_documents(limit=limit, offset=offset, **kwargs)
-        
-        # Get total count
-        total = len(db.search_documents(**kwargs))
-        
-        db.close()
-        
-        return jsonify({
-            'documents': documents,
-            'total': total,
-            'limit': limit,
-            'offset': offset
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Error listing documents: {e}")
-        return jsonify({'error': str(e)}), 500
-
-
-@documents_bp.route('/<int:doc_id>', methods=['GET'])
-def get_document(doc_id: int) -> tuple[Dict[str, Any], int]:
-    """
-    GET /api/documents/<id>
+from app.api_response import APIResponse, ErrorCodes
     Einzelnes Dokument abrufen
     
     Args:
@@ -88,13 +24,19 @@ def get_document(doc_id: int) -> tuple[Dict[str, Any], int]:
         db.close()
         
         if not document:
-            return jsonify({'error': 'Document not found'}), 404
+            return APIResponse.not_found("Document", doc_id)
         
-        return jsonify(document), 200
+        return APIResponse.success(
+            data=document,
+            message="Document retrieved successfully"
+        )
         
     except Exception as e:
         logger.error(f"Error getting document {doc_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return APIResponse.server_error(
+            message="Failed to retrieve document",
+            exception=e
+        )
 
 
 @documents_bp.route('/<int:doc_id>/download', methods=['GET'])
