@@ -1,0 +1,37 @@
+# MINIMAL Requirements für schnelle Installation
+# Nur Core-Funktionalität, keine Heavy Dependencies
+
+# Utilities
+PyYAML==6.0.1
+requests==2.31.0
+watchdog==3.0.0
+APScheduler==3.10.4
+
+# Web Server
+Flask==3.0.0
+Flask-Cors==4.0.0
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Limiter==3.5.0
+Werkzeug==3.0.1
+python-dotenv==1.0.0
+
+# OCR Tools (Basis)
+pytesseract==0.3.10
+pdf2image==1.17.0
+
+# Text-Verarbeitung
+python-docx==1.1.0
+PyPDF2==3.0.1
+pdfplumber==0.10.3
+
+# Logging
+colorlog==6.8.0
+
+# System Monitor
+psutil==5.9.6
+
+# ORM & Database
+SQLAlchemy==2.0.23
+
+# OHNE pandas, opencv, numpy - installiere später manuell wenn nötig!
