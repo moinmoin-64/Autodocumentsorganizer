@@ -2,7 +2,7 @@
 SQLAlchemy Models
 ORM-Modelle für alle Datenbank-Tabellen
 """
-from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey, Table, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey, Table, JSON, Index
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 
@@ -20,20 +20,27 @@ class Document(Base):
     __tablename__ = 'documents'
     
     id = Column(Integer, primary_key=True)
-    filename = Column(String(500), nullable=False)
+    filename = Column(String(500), nullable=False, index=True)  # Index für Suche
     filepath = Column(String(1000), nullable=False, unique=True)
-    category = Column(String(100))
-    subcategory = Column(String(100))
-    date_document = Column(DateTime)
-    date_added = Column(DateTime, default=datetime.utcnow)
+    category = Column(String(100), index=True)  # Index für Filterung
+    subcategory = Column(String(100), index=True)  # Index für Filterung
+    date_document = Column(DateTime, index=True)  # Index für Sortierung
+    date_added = Column(DateTime, default=datetime.utcnow, index=True)  # Index für Sortierung
     summary = Column(Text)
     keywords = Column(Text) # Stored as JSON string
-    full_text = Column(Text)
+    full_text = Column(Text)  # Full-text search index (SQLite FTS or external)
     ocr_confidence = Column(Float)
     processing_time = Column(Float)
-    content_hash = Column(String(64))
+    content_hash = Column(String(64), index=True)  # Index für Duplikat-Check
     amount = Column(Float)
     currency = Column(String(10))
+    
+    # Composite Indexes für häufige Query-Kombinationen
+    __table_args__ = (
+        Index('idx_cat_date', 'category', 'date_document'),  # Kategorie + Datum
+        Index('idx_cat_added', 'category', 'date_added'),  # Kategorie + Hinzugefügt
+        Index('idx_date_cat', 'date_document', 'category'),  # Datum + Kategorie
+    )
     
     # Relationships
     tags = relationship('Tag', secondary=document_tags, back_populates='documents')
