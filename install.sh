@@ -334,8 +334,11 @@ install_expo() {
         if [ "$DRY_RUN" = false ]; then
             sudo -u "$REAL_USER" npm install || log WARN "npm install failed"
             
-            if ! command_exists expo; then
-                npm install -g expo-cli@latest eas-cli@latest || log WARN "Expo CLI install failed"
+            # Fix dependencies for Expo SDK 54+
+            sudo -u "$REAL_USER" npx expo install --fix || log WARN "expo install --fix failed"
+            
+            if ! command_exists eas; then
+                npm install -g eas-cli@latest || log WARN "EAS CLI install failed"
             fi
         fi
         cd "$PROJECT_DIR"

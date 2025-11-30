@@ -93,6 +93,11 @@ if [ -d "$EXPO_DIR" ]; then
     echo -e "${CYAN}║  iOS:     Expo Go App aus App Store                   ║${NC}"
     echo -e "${CYAN}║  Android: Expo Go App aus Play Store                  ║${NC}"
     echo -e "${CYAN}║                                                        ║${NC}"
+    echo -e "${CYAN}║  Optionen:                                             ║${NC}"
+    echo -e "${CYAN}║  --tunnel   Für Remote-Zugriff (empfohlen)            ║${NC}"
+    echo -e "${CYAN}║  --web      Im Browser starten                        ║${NC}"
+    echo -e "${CYAN}║  --lan      Im lokalen Netzwerk (Standard)            ║${NC}"
+    echo -e "${CYAN}║                                                        ║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
     

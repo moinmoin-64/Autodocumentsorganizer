@@ -1,7 +1,11 @@
-@echo off
 echo ========================================================
 echo   DOKUMENTENVERWALTUNG - WINDOWS DEV START
 echo ========================================================
+echo.
+echo Optionen:
+echo   --tunnel   Fuer Remote-Zugriff (empfohlen)
+echo   --web      Im Browser starten
+echo   --lan      Im lokalen Netzwerk (Standard)
 echo.
 
 :: 1. Backend starten
