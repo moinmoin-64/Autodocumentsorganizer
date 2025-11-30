@@ -11,9 +11,9 @@ import {
     StatusBar,
     Modal,
     ActivityIndicator,
-    Alert
+    Alert,
+    TextInput
 } from 'react-native';
-import { Camera } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { BlurView } from 'expo-blur';
@@ -122,7 +122,7 @@ function GalleryScreen({ serverUrl }) {
     }, []);
 
     const requestPermissions = async () => {
-        const { status } = await Camera.requestCameraPermissionsAsync();
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
         setCameraPermission(status === 'granted');
     };
 
@@ -230,13 +230,39 @@ function GalleryScreen({ serverUrl }) {
                 />
             )}
 
-            {/* Upload Button */}
-            <TouchableOpacity
-                style={styles.uploadButton}
-                onPress={handleUpload}
-            >
-                <Ionicons name="camera" size={28} color="#fff" />
-            </TouchableOpacity>
+            {/* Actions Container */}
+            <View style={styles.actionsContainer}>
+                {/* Import Button */}
+                <TouchableOpacity
+                    style={[styles.actionButton, { marginBottom: 16, backgroundColor: '#34C759' }]}
+                    onPress={async () => {
+                        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                        if (status !== 'granted') {
+                            Alert.alert('Berechtigung', 'Zugriff auf Fotos benötigt');
+                            return;
+                        }
+
+                        const result = await ImagePicker.launchImageLibraryAsync({
+                            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                            quality: 0.8,
+                        });
+
+                        if (!result.canceled) {
+                            await uploadPhoto(result.assets[0].uri);
+                        }
+                    }}
+                >
+                    <Ionicons name="images" size={28} color="#fff" />
+                </TouchableOpacity>
+
+                {/* Camera Button */}
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={handleUpload}
+                >
+                    <Ionicons name="camera" size={28} color="#fff" />
+                </TouchableOpacity>
+            </View>
 
             {/* Photo Viewer Modal */}
             {selectedPhoto && (
@@ -341,21 +367,24 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
-    uploadButton: {
+    actionsContainer: {
         position: 'absolute',
         bottom: 24,
         right: 24,
+        alignItems: 'center',
+    },
+    actionButton: {
         width: 56,
         height: 56,
         borderRadius: 28,
         backgroundColor: '#007AFF',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#007AFF',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
+        shadowRadius: 4,
+        elevation: 5,
     },
     loadingContainer: {
         flex: 1,
