@@ -11,7 +11,32 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+RED='\033[0;31m'
 NC='\033[0m'
+
+# Defaults
+EXPO_MODE="--lan"
+BACKEND_PORT=5001
+
+# Argument Parsing
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --tunnel) EXPO_MODE="--tunnel"; shift ;;
+        --web) EXPO_MODE="--web"; shift ;;
+        --lan) EXPO_MODE="--lan"; shift ;;
+        --port) BACKEND_PORT="$2"; shift 2 ;;
+        -h|--help)
+            echo "Usage: $0 [OPTIONS]"
+            echo "Options:"
+            echo "  --tunnel    Expo über Internet (für Remote-Testing)"
+            echo "  --web       Expo im Browser"
+            echo "  --lan       Expo im LAN (Standard)"
+            echo "  --port NUM  Backend-Port (Default: 5001)"
+            exit 0
+            ;;
+        *) echo "Unbekannte Option: $1"; exit 1 ;;
+    esac
+done
 
 clear
 echo -e "${CYAN}"
@@ -28,41 +53,90 @@ echo -e "${BLUE}Projekt: $PROJECT_DIR${NC}"
 echo ""
 
 # ==========================================
+# HELPER FUNCTIONS
+# ==========================================
+
+check_port() {
+    local port=$1
+    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+        return 0  # Port in use
+    else
+        return 1  # Port free
+    fi
+}
+
+wait_for_health() {
+    local url=$1
+    local max_wait=30
+    
+    echo "Warte auf Health-Check..."
+    for i in $(seq 1 $max_wait); do
+        if curl -sf "$url/health" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓ Backend ist gesund!${NC}"
+            return 0
+        fi
+        sleep 1
+    done
+    
+    echo -e "${YELLOW}⚠ Backend antwortet nicht auf Health-Check${NC}"
+    return 1
+}
+
+# ==========================================
 # SCHRITT 1: Backend starten
 # ==========================================
 
 echo -e "${YELLOW}━━━━ Backend Server starten ━━━━${NC}"
 
-# Check if running as service
-if systemctl is-active --quiet document-manager; then
-    echo -e "${GREEN}✓ Backend läuft bereits als Service${NC}"
-    echo "  Status: systemctl status document-manager"
-else
-    # Start backend in background
-    echo "Starte Flask Backend..."
+# Port Check
+if check_port $BACKEND_PORT; then
+    echo -e "${YELLOW}⚠ Port $BACKEND_PORT bereits belegt${NC}"
+    
+    # Check if it's our service
+    if systemctl is-active --quiet document-manager 2>/dev/null; then
+        echo -e "${GREEN}✓ Backend läuft bereits als Service${NC}"
+    else
+        # Try to kill existing process on port
+        echo "Beende alten Prozess auf Port $BACKEND_PORT..."
+        PID=$(lsof -ti:$BACKEND_PORT)
+        if [ -n "$PID" ]; then
+            kill $PID 2>/dev/null
+            sleep 2
+        fi
+    fi
+fi
+
+# Check if service is NOT running, then start backend
+if ! systemctl is-active --quiet document-manager 2>/dev/null; then
+    echo "Starte Flask Backend auf Port $BACKEND_PORT..."
+    
+    if [ ! -d "venv" ]; then
+        echo -e "${RED}✗ Virtual Environment nicht gefunden!${NC}"
+        echo "Führe zuerst: ./install.sh aus"
+        exit 1
+    fi
     
     source venv/bin/activate
     
     # Start in background with nohup
-    nohup python app/server.py > /tmp/backend.log 2>&1 &
+    nohup python app/server.py --port $BACKEND_PORT > /tmp/backend.log 2>&1 &
     BACKEND_PID=$!
     
     echo -e "${GREEN}✓ Backend gestartet (PID: $BACKEND_PID)${NC}"
     echo "  Logs: tail -f /tmp/backend.log"
     
-    # Wait for backend to be ready
-    echo "Warte auf Backend..."
-    for i in {1..10}; do
-        if curl -s http://localhost:5001 > /dev/null 2>&1; then
-            echo -e "${GREEN}✓ Backend bereit!${NC}"
-            break
-        fi
-        sleep 1
-    done
+    # Wait for backend with health check
+    if wait_for_health "http://localhost:$BACKEND_PORT"; then
+        echo -e "${GREEN}✓ Backend ist bereit und gesund${NC}"
+    else
+        echo -e "${RED}✗ Backend-Start fehlgeschlagen. Logs:${NC}"
+        tail -n 20 /tmp/backend.log
+        exit 1
+    fi
 fi
 
 IP=$(hostname -I | awk '{print $1}' || echo "localhost")
-echo -e "${CYAN}Backend URL: http://$IP:5001${NC}"
+echo -e "${CYAN}Backend URL: http://$IP:$BACKEND_PORT${NC}"
 echo ""
 
 # ==========================================
@@ -82,7 +156,7 @@ if [ -d "$EXPO_DIR" ]; then
         npm install
     fi
     
-    echo -e "${GREEN}Starting Expo...${NC}"
+    echo -e "${GREEN}Starting Expo in ${EXPO_MODE#--} mode...${NC}"
     echo ""
     echo -e "${CYAN}╔════════════════════════════════════════════════════════╗${NC}"
     echo -e "${CYAN}║                                                        ║${NC}"
@@ -93,22 +167,19 @@ if [ -d "$EXPO_DIR" ]; then
     echo -e "${CYAN}║  iOS:     Expo Go App aus App Store                   ║${NC}"
     echo -e "${CYAN}║  Android: Expo Go App aus Play Store                  ║${NC}"
     echo -e "${CYAN}║                                                        ║${NC}"
-    echo -e "${CYAN}║  Optionen:                                             ║${NC}"
-    echo -e "${CYAN}║  --tunnel   Für Remote-Zugriff (empfohlen)            ║${NC}"
-    echo -e "${CYAN}║  --web      Im Browser starten                        ║${NC}"
-    echo -e "${CYAN}║  --lan      Im lokalen Netzwerk (Standard)            ║${NC}"
+    if [[ "$EXPO_MODE" == "--tunnel" ]]; then
+        echo -e "${CYAN}║  🌐 TUNNEL MODE aktiv - funktioniert überall!        ║${NC}"
+    elif [[ "$EXPO_MODE" == "--web" ]]; then
+        echo -e "${CYAN}║  🌐 WEB MODE - Browser wird geöffnet                 ║${NC}"
+    else
+        echo -e "${CYAN}║  📡 LAN MODE - nur im gleichen Netzwerk              ║${NC}"
+    fi
     echo -e "${CYAN}║                                                        ║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════╝${NC}"
     echo ""
     
     # Start Expo
-    if [[ "$1" == "--web" ]]; then
-        echo -e "${GREEN}Starting Expo in WEB mode...${NC}"
-        npx expo start --web
-    else
-        # Start Expo (foreground, damit man QR sieht)
-        npx expo start --lan
-    fi
+    npx expo start $EXPO_MODE
     
 else
     echo -e "${YELLOW}⚠ Expo App nicht gefunden in: $EXPO_DIR${NC}"
@@ -116,4 +187,4 @@ else
 fi
 
 # Cleanup on exit
-trap "echo 'Stopping...'; kill $BACKEND_PID 2>/dev/null; exit" INT TERM
+trap "echo 'Stopping...'; [ -n '$BACKEND_PID' ] && kill $BACKEND_PID 2>/dev/null; exit" INT TERM

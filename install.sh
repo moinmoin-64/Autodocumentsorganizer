@@ -148,7 +148,63 @@ log INFO "Installation für User: $REAL_USER"
 log INFO "Log-Datei: $LOG_FILE"
 if [ "$DRY_RUN" = true ]; then log WARN "DRY-RUN MODUS AKTIV - Keine Änderungen!"; fi
 
-# 1. Netzwerk Check
+# 1. System Checks
+check_system() {
+    log INFO "Prüfe Systemvoraussetzungen..."
+    
+    # OS Check
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        if [[ "$ID" != "debian" && "$ID" != "raspbian" && "$ID" != "ubuntu" ]]; then
+            log WARN "Nicht-unterstütztes OS erkannt: $ID. Installation könnte fehlschlagen."
+        fi
+    fi
+    
+    # Python Version Check
+    if command_exists python3; then
+        PY_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        if (( $(echo "$PY_VERSION < 3.11" | bc -l) )); then
+            log WARN "Python Version $PY_VERSION ist alt. Empfohlen: 3.11+"
+        fi
+    fi
+}
+check_system
+
+# 2. Swap Setup (Wichtig für Pi mit wenig RAM)
+setup_swap() {
+    log INFO "Prüfe Swap-Speicher..."
+    if [ "$DRY_RUN" = true ]; then return; fi
+    
+    TOTAL_MEM=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    SWAP_SIZE=$(grep SwapTotal /proc/meminfo | awk '{print $2}')
+    
+    # Wenn weniger als 4GB RAM und weniger als 2GB Swap
+    if [ "$TOTAL_MEM" -lt 4000000 ] && [ "$SWAP_SIZE" -lt 2000000 ]; then
+        log INFO "Wenig RAM erkannt ($((TOTAL_MEM/1024))MB). Erweitere Swap auf 2GB..."
+        
+        # dphys-swapfile Konfiguration anpassen (Raspberry Pi Standard)
+        if [ -f /etc/dphys-swapfile ]; then
+            sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+            systemctl restart dphys-swapfile
+            log SUCCESS "Swap erweitert"
+        else
+            # Fallback: Manuelles Swapfile
+            if [ ! -f /swapfile ]; then
+                fallocate -l 2G /swapfile
+                chmod 600 /swapfile
+                mkswap /swapfile
+                swapon /swapfile
+                echo "/swapfile none swap sw 0 0" >> /etc/fstab
+                log SUCCESS "Swapfile erstellt (2GB)"
+            fi
+        fi
+    else
+        log INFO "Speicher ausreichend (RAM: $((TOTAL_MEM/1024))MB, Swap: $((SWAP_SIZE/1024))MB)"
+    fi
+}
+setup_swap
+
+# 3. Netzwerk Check
 log INFO "Prüfe Internetverbindung..."
 if ! ping -c 1 -W 3 8.8.8.8 >/dev/null 2>&1; then
     log WARN "Kein Internet! Große Downloads werden übersprungen."
@@ -268,7 +324,6 @@ install_ollama() {
     fi
     
     log INFO "Installiere Ollama..."
-    log INFO "Installiere Ollama..."
     if [ "$DRY_RUN" = false ]; then
         # Robuster Download des Install-Scripts (force HTTP/1.1)
         if curl --http1.1 -fsSL https://ollama.com/install.sh -o /tmp/ollama_install.sh; then
@@ -322,10 +377,12 @@ if [ ! -d "venv" ] && [ "$DRY_RUN" = false ]; then
 fi
 
 # Requirements
-log INFO "Installiere Python Dependencies..."
+log INFO "Installiere Python Dependencies (kann 5-10 Min. dauern)..."
 if [ "$DRY_RUN" = false ]; then
-    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && pip install -r requirements.txt -q && pip install Pillow qrcode[pil] -q"
+    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install Pillow qrcode[pil]"
 fi
+log SUCCESS "Python-Pakete installiert"
+
 
 # 7. Expo Setup
 install_expo() {
@@ -386,11 +443,93 @@ if [ "$DRY_RUN" = false ]; then
     
     # User zu Gruppen
     usermod -a -G scanner,lp "$REAL_USER" 2>/dev/null || true
+    
+    # Datenbank initialisieren
+    log INFO "Initialisiere Datenbank..."
+    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && python -c 'from app.db_config import init_db; init_db()'" 2>/dev/null || log WARN "DB-Init übersprungen (bereits vorhanden?)"
 fi
+
+# 9. Post-Installation Validierung
+validate_installation() {
+    log INFO "Validiere Installation..."
+    
+    local errors=0
+    
+    # Python venv Check
+    if [ ! -d "$PROJECT_DIR/venv" ]; then
+        log ERROR "Virtual Environment fehlt!"
+        ((errors++))
+    fi
+    
+    # Database Check
+    if [ ! -f "$PROJECT_DIR/data/database.db" ]; then
+        log WARN "Datenbank nicht gefunden (wird beim ersten Start erstellt)"
+    fi
+    
+    # Service Check
+    if [ "$DRY_RUN" = false ]; then
+        if systemctl is-enabled document-manager.service >/dev/null 2>&1; then
+            log SUCCESS "Service konfiguriert"
+        else
+            log WARN "Service nicht aktiviert"
+        fi
+    fi
+    
+    # Expo Check
+    if [ -d "$PROJECT_DIR/mobile/photo_app_expo/node_modules" ]; then
+        log SUCCESS "Expo App bereit"
+    else
+        log WARN "Expo App nicht vollständig installiert"
+    fi
+    
+    if [ $errors -gt 0 ]; then
+        log ERROR "Validation fehlgeschlagen! Siehe Log: $LOG_FILE"
+        return 1
+    else
+        log SUCCESS "Validation erfolgreich!"
+        return 0
+    fi
+}
+validate_installation
 
 # 9. Abschluss
 IP=$(hostname -I | awk '{print $1}' || echo "localhost")
 
+# Erstelle Installations-Zusammenfassung
+SUMMARY_FILE="$REAL_HOME/installation_summary.txt"
+{
+    echo "═══════════════════════════════════════════════════════════"
+    echo "  INSTALLATION ABGESCHLOSSEN - $(date)"
+    echo "═══════════════════════════════════════════════════════════"
+    echo ""
+    echo "📦 INSTALLIERTE KOMPONENTEN:"
+    echo "  ✓ Python $(python3 --version 2>&1 | awk '{print $2}')"
+    if command_exists node; then echo "  ✓ Node.js $(node -v)"; fi
+    if command_exists ollama; then echo "  ✓ Ollama $(ollama -v 2>&1 | head -n1)"; fi
+    if command_exists npm && [ -d "$PROJECT_DIR/mobile/photo_app_expo/node_modules" ]; then 
+        echo "  ✓ Expo App (SDK 54)"
+    fi
+    echo ""
+    echo "🌐 ZUGRIFF:"
+    echo "  Dashboard: http://$IP:5001"
+    echo "  Fotos:     http://$IP:5001/photos.html"
+    echo ""
+    echo "🚀 STARTEN:"
+    echo "  Development: cd $PROJECT_DIR && ./start_dev.sh"
+    echo "  Production:  systemctl status document-manager"
+    echo ""
+    echo "📁 DATEN:"
+    if mountpoint -q "$MOUNT_POINT"; then
+        echo "  Foto-Speicher: $MOUNT_POINT (extern)"
+    else
+        echo "  Foto-Speicher: $PROJECT_DIR/data/Bilder (intern)"
+    fi
+    echo "  Log-Datei:     $LOG_FILE"
+    echo ""
+    echo "═══════════════════════════════════════════════════════════"
+} > "$SUMMARY_FILE"
+
+# Terminal-Ausgabe
 echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║           ✓ INSTALLATION ABGESCHLOSSEN!                   ║${NC}"
@@ -400,12 +539,14 @@ echo -e "${CYAN}Dashboard:${NC} http://$IP:5001"
 echo -e "${CYAN}Fotos:${NC}     http://$IP:5001/photos.html"
 echo ""
 echo -e "${YELLOW}Starten:${NC}"
-echo "  Development: ./start_dev.sh"
+echo "  Development: ./start_dev.sh --tunnel"
 echo "  Production:  Service läuft bereits"
+echo ""
+echo -e "${CYAN}📋 Zusammenfassung:${NC} cat ~/installation_summary.txt"
 echo ""
 if [ "$DRY_RUN" = true ]; then
     echo -e "${YELLOW}[DRY-RUN] Es wurden keine Änderungen vorgenommen.${NC}"
 else
-    echo -e "${YELLOW}Bitte neu starten: sudo reboot${NC}"
+    echo -e "${YELLOW}💡 Empfohlen: sudo reboot${NC}"
 fi
 echo ""
