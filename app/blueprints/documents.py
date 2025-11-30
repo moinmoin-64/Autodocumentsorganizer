@@ -2,12 +2,106 @@
 Documents Blueprint
 API-Endpoints für Dokument-Verwaltung
 """
-from flask import Blueprint, request, send_file, current_app
+from flask import Blueprint, jsonify, request, send_file, current_app
 from pathlib import Path
 import logging
 from typing import Dict, Any, Tuple
 
 from app.api_response import APIResponse, ErrorCodes
+
+documents_bp = Blueprint('documents', __name__, url_prefix='/api/documents')
+logger = logging.getLogger(__name__)
+
+
+@documents_bp.route('/', methods=['GET'])
+def list_documents() -> Tuple[Dict[str, Any], int]:
+    """
+    GET /api/documents
+    Liste aller Dokumente mit optionalen Filtern
+    
+    Query Parameters:
+        page: Seite (default: 1)
+        page_size: Einträge pro Seite (default: 20)
+        category: Filter nach Kategorie
+        year: Filter nach Jahr
+        query: Volltextsuche
+    
+    Returns:
+        JSON mit paginierten Dokumenten
+    """
+    try:
+        from app.database import Database
+        
+        db = Database()
+        
+        # Query-Parameter (modernized pagination)
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 20))
+        category = request.args.get('category')
+        year = request.args.get('year')
+        query = request.args.get('query')
+        
+        # Validation
+        if page < 1:
+            return APIResponse.validation_error(
+                {"page": ["Must be >= 1"]},
+                "Invalid pagination parameters"
+            )
+        if page_size < 1 or page_size > 100:
+            return APIResponse.validation_error(
+                {"page_size": ["Must be between 1 and 100"]},
+                "Invalid page size"
+            )
+        
+        # Calculate offset
+        offset = (page - 1) * page_size
+        
+        # Build filter kwargs
+        kwargs = {}
+        if category:
+            kwargs['category'] = category
+        if year:
+            try:
+                kwargs['year'] = int(year)
+            except ValueError:
+                return APIResponse.validation_error(
+                    {"year": ["Must be a valid year"]}
+                )
+        if query:
+            kwargs['query'] = query
+        
+        # Get documents
+        documents = db.search_documents(
+            limit=page_size,
+            offset=offset,
+            **kwargs
+        )
+        
+        # Get total count
+        total = db.count_documents(**kwargs)
+        
+        db.close()
+        
+        return APIResponse.paginated(
+            data=documents,
+            total=total,
+            page=page,
+            page_size=page_size,
+            message="Documents retrieved successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error listing documents: {e}")
+        return APIResponse.server_error(
+            message="Failed to retrieve documents",
+            exception=e
+        )
+
+
+@documents_bp.route('/<int:doc_id>', methods=['GET'])
+def get_document(doc_id: int) -> Tuple[Dict[str, Any], int]:
+    """
+    GET /api/documents/<id>
     Einzelnes Dokument abrufen
     
     Args:
@@ -77,7 +171,7 @@ def download_document(doc_id: int):
 
 
 @documents_bp.route('/<int:doc_id>', methods=['DELETE'])
-def delete_document(doc_id: int) -> tuple[Dict[str, Any], int]:
+def delete_document(doc_id: int) -> Tuple[Dict[str, Any], int]:
     """
     DELETE /api/documents/<id>
     Dokument löschen
@@ -97,7 +191,7 @@ def delete_document(doc_id: int) -> tuple[Dict[str, Any], int]:
         document = db.get_document(doc_id)
         if not document:
             db.close()
-            return jsonify({'error': 'Document not found'}), 404
+            return APIResponse.not_found("Document", doc_id)
         
         # Delete from database
         db.delete_document(doc_id)
@@ -112,15 +206,18 @@ def delete_document(doc_id: int) -> tuple[Dict[str, Any], int]:
         
         db.close()
         
-        return jsonify({'success': True, 'message': 'Document deleted'}), 200
+        return APIResponse.no_content("Document deleted successfully")
         
     except Exception as e:
         logger.error(f"Error deleting document {doc_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return APIResponse.server_error(
+            message="Failed to delete document",
+            exception=e
+        )
 
 
 @documents_bp.route('/<int:doc_id>', methods=['PUT'])
-def update_document(doc_id: int) -> tuple[Dict[str, Any], int]:
+def update_document(doc_id: int) -> Tuple[Dict[str, Any], int]:
     """
     PUT /api/documents/<id>
     Dokument-Metadaten aktualisieren
@@ -136,7 +233,10 @@ def update_document(doc_id: int) -> tuple[Dict[str, Any], int]:
         
         data = request.json
         if not data:
-            return jsonify({'error': 'No data provided'}), 400
+            return APIResponse.validation_error(
+                {"body": ["No data provided"]},
+                "Request body required"
+            )
         
         db = Database()
         
@@ -144,18 +244,20 @@ def update_document(doc_id: int) -> tuple[Dict[str, Any], int]:
         document = db.get_document(doc_id)
         if not document:
             db.close()
-            return jsonify({'error': 'Document not found'}), 404
+            return APIResponse.not_found("Document", doc_id)
         
         # Update document (implement in database.py if not exists)
         # For now, just return success
         db.close()
         
-        return jsonify({
-            'success': True,
-            'message': 'Document updated',
-            'document': document
-        }), 200
+        return APIResponse.success(
+            data=document,
+            message="Document updated successfully"
+        )
         
     except Exception as e:
         logger.error(f"Error updating document {doc_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return APIResponse.server_error(
+            message="Failed to update document",
+            exception=e
+        )
