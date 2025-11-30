@@ -33,8 +33,10 @@ def get_db():
     try:
         yield db
         db.commit()
-    except Exception:
+    except Exception as e:
         db.rollback()
+        import logging
+        logging.getLogger(__name__).error(f"Database transaction error: {e}")
         raise
     finally:
         db.close()

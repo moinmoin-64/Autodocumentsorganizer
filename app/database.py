@@ -22,7 +22,11 @@ class Database:
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 self.config = yaml.safe_load(f)
-        except Exception:
+        except (FileNotFoundError, yaml.YAMLError) as e:
+            logger.warning(f"Config konnte nicht geladen werden: {e}. Nutze Defaults.")
+            self.config = {}
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler beim Laden der Config: {e}")
             self.config = {}
         
         # Sicherstellen, dass Tabellen existieren

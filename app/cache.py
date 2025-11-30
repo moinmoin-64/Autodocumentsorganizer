@@ -31,6 +31,7 @@ class CacheManager:
         self.redis = None
         self.enabled = False
         self._memory_cache = {}
+        self._memory_cache_timestamps = {}  # Track insertion time
         
         try:
             import redis
@@ -39,13 +40,17 @@ class CacheManager:
                 host='localhost',
                 port=6379,
                 db=0,
-                socket_connect_timeout=1
+                socket_connect_timeout=1,
+                decode_responses=False  # Binary mode für pickle
             )
             self.redis.ping()
             self.enabled = True
             logger.info("Redis Cache verbunden")
-        except Exception as e:
+        except (ImportError, redis.ConnectionError, redis.TimeoutError) as e:
             logger.warning(f"Redis nicht verfügbar, nutze In-Memory Cache: {e}")
+            self.enabled = False
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler bei Redis-Setup: {e}")
             self.enabled = False
             
         self._initialized = True
@@ -71,14 +76,24 @@ class CacheManager:
                 data = pickle.dumps(value)
                 return self.redis.setex(key, timeout, data)
             else:
+                # Memory cache mit Timeout-Tracking
+                import time
                 self._memory_cache[key] = value
-                # TODO: Cleanup für Memory Cache implementieren
+                self._memory_cache_timestamps[key] = time.time()
+                
+                # Cleanup alter Einträge (max 1000 items)
+                if len(self._memory_cache) > 1000:
+                    self._cleanup_memory_cache()
+                
                 return True
+        except (pickle.PickleError, TypeError) as e:
+            logger.error(f"Cache Serialization Error: {e}")
+            return False
         except Exception as e:
             logger.error(f"Cache Set Error: {e}")
             return False
 
-    def delete(self, key: str):
+    def delete(self, key: str) -> bool:
         """Löscht Wert aus Cache"""
         try:
             if self.enabled and self.redis:
@@ -86,8 +101,12 @@ class CacheManager:
             else:
                 if key in self._memory_cache:
                     del self._memory_cache[key]
-        except Exception:
-            pass
+                if key in self._memory_cache_timestamps:
+                    del self._memory_cache_timestamps[key]
+            return True
+        except Exception as e:
+            logger.error(f"Cache Delete Error für key '{key}': {e}")
+            return False
             
     def clear_pattern(self, pattern: str):
         """Löscht Keys nach Pattern (nur Redis)"""
@@ -127,3 +146,20 @@ class CacheManager:
                 return result
             return wrapper
         return decorator
+
+    def _cleanup_memory_cache(self, max_age: int = 300):
+        """Entfernt alte Einträge aus Memory Cache"""
+        import time
+        current_time = time.time()
+        
+        # Lösche Einträge älter als max_age Sekunden
+        keys_to_delete = [
+            key for key, timestamp in self._memory_cache_timestamps.items()
+            if current_time - timestamp > max_age
+        ]
+        
+        for key in keys_to_delete:
+            del self._memory_cache[key]
+            del self._memory_cache_timestamps[key]
+        
+        logger.debug(f"Cleanup: {len(keys_to_delete)} alte Cache-Einträge entfernt")
