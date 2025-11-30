@@ -268,17 +268,21 @@ install_ollama() {
     fi
     
     log INFO "Installiere Ollama..."
+    log INFO "Installiere Ollama..."
     if [ "$DRY_RUN" = false ]; then
-        # Mit pv wenn möglich
-        INSTALL_CMD="curl -fsSL https://ollama.com/install.sh | sh"
-        if command_exists pv; then
-            INSTALL_CMD="curl -fsSL https://ollama.com/install.sh | pv -qL 1000 | sh"
-        fi
-        
-        if run_with_retry "$INSTALL_CMD"; then
-            log SUCCESS "Ollama installiert"
+        # Robuster Download des Install-Scripts (force HTTP/1.1)
+        if curl --http1.1 -fsSL https://ollama.com/install.sh -o /tmp/ollama_install.sh; then
+            chmod +x /tmp/ollama_install.sh
+            
+            # Installation ausführen
+            if run_with_retry "/tmp/ollama_install.sh"; then
+                log SUCCESS "Ollama installiert"
+            else
+                log WARN "Ollama Installation fehlgeschlagen - mache ohne weiter"
+            fi
+            rm -f /tmp/ollama_install.sh
         else
-            log WARN "Ollama Installation fehlgeschlagen - mache ohne weiter"
+            log WARN "Download des Ollama-Scripts fehlgeschlagen (Curl Error)"
         fi
     fi
 }

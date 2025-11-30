@@ -34,8 +34,12 @@ Dieses Script testet:
 ## 3. Server starten
 
 ```bash
-# Hauptsystem starten
+# Hauptsystem starten (Linux/Mac)
 python main.py
+
+# Oder mit Development Script (Windows)
+.\start_dev.bat --web
+
 ```
 
 Dashboard öffnen: http://localhost:5000

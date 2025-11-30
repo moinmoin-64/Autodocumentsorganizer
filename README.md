@@ -32,6 +32,11 @@
 - **Responsive Layout** (Desktop-optimiert)
 - **Interactive Charts** (Chart.js)
 
+### 📱 Mobile App (Expo)
+- **iOS-Style Design**
+- **Kamera & Galerie Import**
+- **Automatische Synchronisation**
+
 ### 🔐 Sicherheit
 - **CSRF Protection** mit Flask-WTF
 - **Rate Limiting** zum Schutz vor Missbrauch
@@ -78,13 +83,16 @@ pip install -r requirements-dev.txt
 # Datenbank initialisieren
 python -c "from app.db_config import init_db; init_db()"
 
-# Server starten
+# Server starten (Linux/Mac)
 python app/server.py
+
+# Server starten (Windows)
+.\start_dev.bat
 ```
 
 #### Raspberry Pi Installation
 ```bash
-bash raspberry_pi_install.sh
+bash install.sh
 ```
 
 ### Konfiguration
@@ -198,7 +206,8 @@ app/
 │   ├── tags.py          # Tag-Management
 │   ├── stats.py         # Statistiken
 │   ├── export.py        # Export-Funktionen
-│   └── chat.py          # Chatbot
+│   ├── chat.py          # Chatbot
+│   └── photos.py        # Foto-Management
 ├── db_config.py         # SQLAlchemy Configuration
 ├── database.py          # Database Layer (ORM)
 ├── categorizer.py       # AI Kategorisierung
@@ -375,7 +384,7 @@ MIT License - siehe [LICENSE](LICENSE)
 - [ ] Dark Mode Support
 - [ ] Multi-User mit Rollen
 - [ ] Cloud Storage Integration
-- [ ] Mobile App (React Native)
+- [x] Mobile App (Expo React Native)
 - [ ] Advanced AI Features (GPT-4)
 - [ ] Workflow Automation
 - [ ] Email Templates
