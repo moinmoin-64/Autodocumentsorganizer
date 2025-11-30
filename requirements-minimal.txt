@@ -1,37 +1,40 @@
-# MINIMAL Requirements für schnelle Installation
-# Nur Core-Funktionalität, keine Heavy Dependencies
+# MINIMAL Requirements - LATEST VERSIONS
+# Für Raspberry Pi Zero/Limited Storage
 
 # Utilities
-PyYAML==6.0.1
-requests==2.31.0
-watchdog==3.0.0
-APScheduler==3.10.4
+PyYAML==6.0.2
+requests==2.32.3
+watchdog==6.0.0
+APScheduler==3.11.0
 
 # Web Server
-Flask==3.0.0
-Flask-Cors==4.0.0
+Flask==3.1.0
+Flask-Cors==5.0.0
 Flask-Login==0.6.3
-Flask-WTF==1.2.1
-Flask-Limiter==3.5.0
-Werkzeug==3.0.1
-python-dotenv==1.0.0
+Flask-WTF==1.2.2
+Flask-Limiter==3.8.1
+Werkzeug==3.1.3
+python-dotenv==1.0.1
 
 # OCR Tools (Basis)
-pytesseract==0.3.10
+pytesseract==0.3.13
 pdf2image==1.17.0
 
-# Text-Verarbeitung
-python-docx==1.1.0
+# Text Processing
+python-docx==1.1.2
 PyPDF2==3.0.1
-pdfplumber==0.10.3
+pdfplumber==0.11.4
 
 # Logging
-colorlog==6.8.0
+colorlog==6.9.0
 
 # System Monitor
-psutil==5.9.6
+psutil==6.1.1
 
 # ORM & Database
-SQLAlchemy==2.0.23
+SQLAlchemy==2.0.36
+alembic==1.14.0
 
-# OHNE pandas, opencv, numpy - installiere später manuell wenn nötig!
+# Image Support (minimal)
+Pillow==11.0.0
+qrcode[pil]==8.0
