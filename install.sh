@@ -325,19 +325,36 @@ install_ollama() {
     
     log INFO "Installiere Ollama..."
     if [ "$DRY_RUN" = false ]; then
-        # Robuster Download des Install-Scripts (force HTTP/1.1)
-        if curl --http1.1 -fsSL https://ollama.com/install.sh -o /tmp/ollama_install.sh; then
-            chmod +x /tmp/ollama_install.sh
+        # Robuster Download mit mehreren Methoden
+        OLLAMA_SCRIPT="/tmp/ollama_install.sh"
+        
+        # Methode 1: wget (bevorzugt für große Downloads)
+        if command_exists wget; then
+            log INFO "Verwende wget für Download..."
+            wget --no-check-certificate -q -O "$OLLAMA_SCRIPT" https://ollama.com/install.sh && chmod +x "$OLLAMA_SCRIPT"
+        # Methode 2: curl mit HTTP/1.1
+        elif curl --http1.1 -fsSL https://ollama.com/install.sh -o "$OLLAMA_SCRIPT"; then
+            chmod +x "$OLLAMA_SCRIPT"
+        else
+            log WARN "Download des Ollama-Scripts fehlgeschlagen"
+            OLLAMA_SCRIPT=""
+        fi
+        
+        # Installation ausführen wenn Download erfolgreich
+        if [ -n "$OLLAMA_SCRIPT" ] && [ -f "$OLLAMA_SCRIPT" ]; then
+            # Force HTTP/1.1 für das Ollama-Script selbst
+            export CURL_HTTP_VERSION=HTTP/1.1
             
-            # Installation ausführen
-            if run_with_retry "/tmp/ollama_install.sh"; then
+            if bash "$OLLAMA_SCRIPT"; then
                 log SUCCESS "Ollama installiert"
             else
-                log WARN "Ollama Installation fehlgeschlagen - mache ohne weiter"
+                log WARN "Ollama Installation fehlgeschlagen - überspringe"
             fi
-            rm -f /tmp/ollama_install.sh
+            
+            rm -f "$OLLAMA_SCRIPT"
+            unset CURL_HTTP_VERSION
         else
-            log WARN "Download des Ollama-Scripts fehlgeschlagen (Curl Error)"
+            log WARN "Ollama konnte nicht heruntergeladen werden - überspringe"
         fi
     fi
 }
