@@ -6,6 +6,7 @@ Modular refactored mit Blueprints
 import logging
 import os
 from pathlib import Path
+from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 import yaml
 
@@ -49,19 +50,23 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-# Globale Objekte
-db = None
-search_engine = None
-data_extractor = None
-config = None
+# Globale Objekte (mit Type Hints)
+db: Optional[Database] = None
+search_engine: Optional[SearchEngine] = None
+data_extractor: Optional[DataExtractor] = None
+config: Optional[Dict[str, Any]] = None
 
 
-def init_app(config_path: str = 'config.yaml'):
+def init_app(config_path: str = 'config.yaml') -> None:
     """
     Initialisiert App mit Konfiguration
     
     Args:
         config_path: Pfad zur Konfigurationsdatei
+        
+    Raises:
+        FileNotFoundError: Wenn Config-Datei nicht gefunden
+        yaml.YAMLError: Wenn Config ungültig
     """
     global db, search_engine, data_extractor, config
     
