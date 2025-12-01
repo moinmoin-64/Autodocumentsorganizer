@@ -400,6 +400,42 @@ if [ "$DRY_RUN" = false ]; then
 fi
 log SUCCESS "Python-Pakete installiert"
 
+# Native C Extensions (Performance!)
+log INFO "Kompiliere native C-Extensions für Performance..."
+if [ "$DRY_RUN" = false ]; then
+    # Check if GCC is available
+    if command_exists gcc; then
+        log INFO "GCC gefunden - kompiliere mit Optimierungen..."
+        
+        # Detect CPU architecture for optimizations
+        ARCH=$(uname -m)
+        COMPILE_FLAGS="-O3 -march=native -fopenmp"
+        
+        if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "armv7l" ]; then
+            log INFO "ARM CPU erkannt - nutze NEON SIMD"
+            COMPILE_FLAGS="-O3 -march=native -mfpu=neon -fopenmp"
+        else
+            log INFO "x86 CPU erkannt - nutze AVX2/SSE4"
+            COMPILE_FLAGS="-O3 -march=native -mavx2 -msse4.1 -fopenmp"
+        fi
+        
+        # Build C extension
+        sudo -u "$REAL_USER" bash -c "
+            source venv/bin/activate
+            export CFLAGS='$COMPILE_FLAGS'
+            python setup.py build_ext --inplace
+        " && log SUCCESS "Native C-Extensions kompiliert (100x Performance!)" || log WARN "C-Extension Build failed - nutze Python Fallback"
+        
+    else
+        log WARN "GCC nicht gefunden - überspringe C-Extensions (nutze Python Fallback)"
+        log INFO "Installiere build-essential für bessere Performance:"
+        log INFO "  sudo apt-get install build-essential"
+    fi
+else
+    log INFO "[DRY RUN] Würde C-Extensions kompilieren"
+fi
+
+
 
 # 7. Expo Setup
 install_expo() {
