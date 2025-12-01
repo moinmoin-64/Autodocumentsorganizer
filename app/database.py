@@ -98,6 +98,10 @@ class Database:
     # Alias for compatibility
     get_document_by_id = get_document
 
+    def get_db_session(self):
+        """Gibt eine DB-Session zurück (Context Manager)"""
+        return get_db()
+
     def delete_document(self, doc_id: int) -> bool:
         """Löscht ein Dokument"""
         try:

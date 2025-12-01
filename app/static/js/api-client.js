@@ -218,6 +218,16 @@ class StatsAPI extends APIClient {
         const response = await this.get(`/stats/predictions/${category}`, { months });
         return response.data;
     }
+
+    async compareExpenses(year1, year2) {
+        const response = await this.get('/stats/expenses/compare', { year1, year2 });
+        return response.data;
+    }
+
+    async getInsurances() {
+        const response = await this.get('/stats/insurance/list');
+        return response.data;
+    }
 }
 
 class UploadAPI extends APIClient {

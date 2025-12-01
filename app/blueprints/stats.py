@@ -144,3 +144,51 @@ def get_monthly_trends(year: int) -> tuple[Dict[str, Any], int]:
     except Exception as e:
         logger.error(f"Error getting trends: {e}")
         return jsonify({'error': str(e)}), 500
+
+
+@stats_bp.route('/expenses/compare', methods=['GET'])
+def compare_expenses() -> tuple[Dict[str, Any], int]:
+    """
+    GET /api/stats/expenses/compare
+    Vergleicht Ausgaben zweier Jahre
+    
+    Query Parameters:
+        year1: Erstes Jahr
+        year2: Zweites Jahr
+    """
+    try:
+        year1 = int(request.args.get('year1', datetime.now().year - 1))
+        year2 = int(request.args.get('year2', datetime.now().year))
+        
+        from app.statistics_engine import StatisticsEngine
+        stats_engine = StatisticsEngine()
+        
+        comparison = stats_engine.get_expenses_comparison(year1, year2)
+        return jsonify(comparison), 200
+        
+    except Exception as e:
+        logger.error(f"Error comparing expenses: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@stats_bp.route('/insurance/list', methods=['GET'])
+def list_insurances() -> tuple[Dict[str, Any], int]:
+    """
+    GET /api/stats/insurance/list
+    Liste aller Versicherungen
+    """
+    try:
+        from app.database import Database
+        from app.statistics_engine import StatisticsEngine
+        
+        db = Database()
+        stats_engine = StatisticsEngine(db=db)
+        
+        insurances = stats_engine.get_insurance_list()
+        db.close()
+        
+        return jsonify({'insurances': insurances}), 200
+        
+    except Exception as e:
+        logger.error(f"Error listing insurances: {e}")
+        return jsonify({'error': str(e)}), 500
