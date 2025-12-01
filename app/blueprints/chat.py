@@ -1,31 +1,27 @@
 """
 Chat Blueprint
 API-Endpoints für Chatbot (Ollama Integration)
+Async & Pydantic Modernized
 """
 from flask import Blueprint, jsonify, request
 import logging
-from typing import Dict, Any
+import asyncio
+from typing import Dict, Any, Tuple
 
 chat_bp = Blueprint('chat', __name__, url_prefix='/api/chat')
 logger = logging.getLogger(__name__)
 
 
 @chat_bp.route('/', methods=['POST'])
-def chat() -> tuple[Dict[str, Any], int]:
+async def chat() -> Tuple[Dict[str, Any], int]:
     """
     POST /api/chat
     Chat mit Ollama LLM
-    
-    Request Body:
-        message: Benutzer-Nachricht
-        context: Optional - Dokument-Kontext
-    
-    Returns:
-        JSON mit LLM-Antwort
     """
     try:
         from app.ollama_client import OllamaClient
         from app.database import Database
+        from app.search_engine import SearchEngine
         
         data = request.json or {}
         message = data.get('message', '')
@@ -33,7 +29,7 @@ def chat() -> tuple[Dict[str, Any], int]:
         if not message:
             return jsonify({'error': 'Message required'}), 400
         
-        # Initialize Ollama client
+        # Initialize Ollama client (fast, just config)
         ollama = OllamaClient()
         
         if not ollama.available:
@@ -45,14 +41,17 @@ def chat() -> tuple[Dict[str, Any], int]:
         # Build context from database if requested
         context = ""
         if data.get('include_context', True):
-            db = Database()
-            
-            # Search for relevant documents
-            from app.search_engine import SearchEngine
-            search_engine = SearchEngine()
-            
+            # Run search in thread to avoid blocking event loop
             try:
-                results = search_engine.semantic_search(message, limit=3)
+                def get_context():
+                    db = Database()
+                    search_engine = SearchEngine()
+                    results = search_engine.semantic_search(message, limit=3)
+                    db.close()
+                    return results
+
+                results = await asyncio.to_thread(get_context)
+                
                 if results:
                     context = "Relevante Dokumente:\n"
                     for i, doc in enumerate(results, 1):
@@ -61,12 +60,12 @@ def chat() -> tuple[Dict[str, Any], int]:
                             context += f"   {doc['full_text'][:200]}...\n"
             except Exception as e:
                 logger.warning(f"Context search failed: {e}")
-            
-            db.close()
         
-        # Get LLM response
+        # Get LLM response (blocking I/O)
         full_message = f"{context}\n\nFrage: {message}" if context else message
-        response = ollama.chat(full_message)
+        
+        # Run Ollama chat in thread
+        response = await asyncio.to_thread(ollama.chat, full_message)
         
         return jsonify({
             'response': response,
@@ -79,24 +78,26 @@ def chat() -> tuple[Dict[str, Any], int]:
 
 
 @chat_bp.route('/status', methods=['GET'])
-def get_status() -> tuple[Dict[str, Any], int]:
+async def get_status() -> Tuple[Dict[str, Any], int]:
     """
     GET /api/chat/status
     Ollama-Status prüfen
-    
-    Returns:
-        JSON mit Status-Informationen
     """
     try:
         from app.ollama_client import OllamaClient
         
-        ollama = OllamaClient()
+        # Run in thread as it makes a request to Ollama
+        def check_status():
+            ollama = OllamaClient()
+            return {
+                'available': ollama.available,
+                'url': ollama.url,
+                'models': ollama.list_models() if ollama.available else []
+            }
+            
+        status = await asyncio.to_thread(check_status)
         
-        return jsonify({
-            'available': ollama.available,
-            'url': ollama.url,
-            'models': ollama.list_models() if ollama.available else []
-        }), 200
+        return jsonify(status), 200
         
     except Exception as e:
         logger.error(f"Error getting Ollama status: {e}")
