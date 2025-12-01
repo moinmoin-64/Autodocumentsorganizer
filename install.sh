@@ -396,7 +396,7 @@ fi
 # Requirements
 log INFO "Installiere Python Dependencies (kann 5-10 Min. dauern)..."
 if [ "$DRY_RUN" = false ]; then
-    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install Pillow qrcode[pil]"
+    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install Pillow qrcode[pil] pytest pytest-cov"
 fi
 log SUCCESS "Python-Pakete installiert"
 
@@ -458,12 +458,20 @@ if [ "$DRY_RUN" = false ]; then
         fi
     fi
     
+    # Logs-Verzeichnis
+    mkdir -p "$PROJECT_DIR/logs"
+    chown -R "$REAL_USER:$REAL_USER" "$PROJECT_DIR/logs"
+    
     # User zu Gruppen
     usermod -a -G scanner,lp "$REAL_USER" 2>/dev/null || true
     
     # Datenbank initialisieren
     log INFO "Initialisiere Datenbank..."
     sudo -u "$REAL_USER" bash -c "source venv/bin/activate && python -c 'from app.db_config import init_db; init_db()'" 2>/dev/null || log WARN "DB-Init übersprungen (bereits vorhanden?)"
+    
+    # Database Migration (Indexes hinzufügen)
+    log INFO "Führe Database Migration aus..."
+    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && python -c 'from migrations.001_add_indexes import upgrade; upgrade()'" 2>/dev/null || log WARN "Migration bereits ausgeführt oder nicht nötig"
 fi
 
 # 9. Post-Installation Validierung
