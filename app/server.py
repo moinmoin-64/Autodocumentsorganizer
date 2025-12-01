@@ -205,6 +205,33 @@ def after_request_handler(response):
 
 # === Main ===
 
+# === Request/Response Middleware ===
+
+@app.before_request
+def before_request_handler():
+    """Track request start time"""
+    from flask import request
+    request.start_time = time.time()
+
+
+@app.after_request
+def after_request_handler(response):
+    """Add security headers and log requests"""
+    from flask import request
+    
+    # Add security headers
+    response = add_security_headers(response)
+    
+    # Log request
+    if hasattr(request, 'start_time'):
+        duration = time.time() - request.start_time
+        log_request(request, response, duration)
+    
+    return response
+
+
+# === Main ===
+
 if __name__ == '__main__':
     import argparse
     
