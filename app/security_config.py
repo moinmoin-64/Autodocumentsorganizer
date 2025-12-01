@@ -45,16 +45,8 @@ def setup_security(app):
         strategy="fixed-window"
     )
     
-    # Specific rate limits
-    @app.route('/api/upload', methods=['POST'])
-    @limiter.limit("10 per minute")
-    def rate_limited_upload():
-        pass  # Placeholder
-    
-    @app.route('/api/search', methods=['GET'])
-    @limiter.limit("30 per minute")
-    def rate_limited_search():
-        pass  # Placeholder
+    # Note: Specific rate limits are applied in blueprints directly using @limiter.limit()
+    # Example: @upload_bp.route('/upload') @limiter.limit("10 per minute")
     
     app.logger.info('Security features configured')
     return limiter
