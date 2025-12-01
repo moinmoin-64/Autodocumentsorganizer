@@ -147,13 +147,16 @@ app.register_blueprint(upload_bp, url_prefix='/api')
 app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(health_bp)
 
+from app.blueprints.monitoring import monitoring_bp
+app.register_blueprint(monitoring_bp)
+
 
 # Metrics Endpoint
 @app.route('/metrics')
 def metrics():
     """Prometheus-kompatible Metriken"""
-    from app.metrics import MetricsManager
-    return MetricsManager.get_metrics_response()
+    from app.monitoring import get_metrics
+    return get_metrics()
 
 
 # Static Files
@@ -187,6 +190,8 @@ def internal_error(error):
 
 # === Request/Response Middleware ===
 
+# === Request/Response Middleware ===
+
 @app.before_request
 def before_request_handler():
     """Track request start time"""
@@ -198,9 +203,13 @@ def before_request_handler():
 def after_request_handler(response):
     """Add security headers and log requests"""
     from flask import request
+    from app.monitoring import record_request_metrics
     
     # Add security headers
     response = add_security_headers(response)
+    
+    # Record Prometheus metrics
+    record_request_metrics(response)
     
     # Log request
     if hasattr(request, 'start_time'):
