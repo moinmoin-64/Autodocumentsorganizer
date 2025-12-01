@@ -396,7 +396,7 @@ fi
 # Requirements
 log INFO "Installiere Python Dependencies (kann 5-10 Min. dauern)..."
 if [ "$DRY_RUN" = false ]; then
-    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install Pillow qrcode[pil] pytest pytest-cov"
+    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install Pillow qrcode[pil] pytest pytest-cov pybind11"
 fi
 log SUCCESS "Python-Pakete installiert"
 
