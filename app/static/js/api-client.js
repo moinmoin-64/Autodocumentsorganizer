@@ -230,6 +230,31 @@ class StatsAPI extends APIClient {
     }
 }
 
+class SearchAPI extends APIClient {
+    constructor() {
+        super('/api/search');
+    }
+
+    async advanced(filters) {
+        const response = await this.post('/advanced', filters);
+        return response.data;
+    }
+
+    async saved() {
+        const response = await this.get('/saved');
+        return response.data;
+    }
+
+    async save(name, filters) {
+        const response = await this.post('/saved', { name, filters });
+        return response.data;
+    }
+
+    async deleteSaved(id) {
+        await this.delete(`/saved/${id}`);
+    }
+}
+
 class UploadAPI extends APIClient {
     constructor() {
         super('/api');
@@ -258,6 +283,7 @@ const api = {
     documents: new DocumentsAPI(),
     tags: new TagsAPI(),
     stats: new StatsAPI(),
+    search: new SearchAPI(),
     upload: new UploadAPI(),
 
     // Direct access for custom calls

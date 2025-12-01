@@ -1,6 +1,7 @@
 /**
  * Advanced Search Module
  * Handles advanced search UI with filters, tags, and saved searches
+ * Modernized with APIClient
  */
 
 class AdvancedSearch {
@@ -19,8 +20,7 @@ class AdvancedSearch {
 
     async loadTags() {
         try {
-            const response = await fetch('/api/tags');
-            const data = await response.json();
+            const data = await api.tags.list();
             this.allTags = data.tags || [];
             this.renderTagSuggestions();
         } catch (error) {
@@ -30,8 +30,7 @@ class AdvancedSearch {
 
     async loadSavedSearches() {
         try {
-            const response = await fetch('/api/searches/saved');
-            const data = await response.json();
+            const data = await api.search.saved();
             this.savedSearches = data.searches || [];
             this.renderSavedSearches();
         } catch (error) {
@@ -63,6 +62,18 @@ class AdvancedSearch {
         if (saveBtn) {
             saveBtn.addEventListener('click', () => this.showSaveSearchDialog());
         }
+
+        // Save dialog confirm
+        const saveConfirmBtn = document.getElementById('save-search-confirm');
+        if (saveConfirmBtn) {
+            saveConfirmBtn.addEventListener('click', () => this.saveCurrentSearch());
+        }
+
+        // Save dialog cancel
+        const saveCancelBtn = document.getElementById('save-search-cancel');
+        if (saveCancelBtn) {
+            saveCancelBtn.addEventListener('click', () => this.closeSaveSearchDialog());
+        }
     }
 
     toggleAdvancedSearch() {
@@ -93,23 +104,11 @@ class AdvancedSearch {
         this.currentFilters = filters;
 
         try {
-            const response = await fetch('/api/search/advanced', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(filters)
-            });
-
-            if (!response.ok) {
-                throw new Error('Search failed');
-            }
-
-            const data = await response.json();
-            this.displayResults(data.documents);
+            const data = await api.search.advanced(filters);
+            this.displayResults(data.results || data.documents || []);
         } catch (error) {
             console.error('Advanced search error:', error);
-            alert('Fehler bei der erweiterten Suche: ' + error.message);
+            notifications.show('Fehler', 'Suche fehlgeschlagen: ' + error.message, 'error');
         }
     }
 
@@ -134,15 +133,21 @@ class AdvancedSearch {
                     <span class="category-badge">${doc.category}</span>
                 </div>
                 <div class="document-meta">
-                    <span class="date">${doc.date_document || 'Kein Datum'}</span>
+                    <span class="date">${formatDate(doc.date_document)}</span>
                     ${doc.subcategory ? `<span class="subcategory">${doc.subcategory}</span>` : ''}
                 </div>
                 <div class="document-tags">
-                    ${(doc.tags || []).map(tag =>
-            `<span class="tag" data-tag-id="${tag.id}">${tag.tag_name}
-                            <button class="remove-tag" onclick="advancedSearch.removeTag(${tag.id}, ${doc.id})">×</button>
-                        </span>`
-        ).join('')}
+                    ${(doc.tags || []).map(tag => {
+            // Handle tag object or string
+            const tagName = typeof tag === 'object' ? tag.tag_name : tag;
+            const tagId = typeof tag === 'object' ? tag.id : null; // We might not have ID if string
+
+            // If we don't have ID, we can't easily remove it via API unless we lookup
+            // But for now let's assume we have objects if loaded from API
+            return `<span class="tag" data-tag-id="${tagId}">${tagName}
+                            ${tagId ? `<button class="remove-tag" onclick="advancedSearch.removeTag(${tagId}, ${doc.id})">×</button>` : ''}
+                        </span>`;
+        }).join('')}
                     <button class="add-tag-btn" onclick="advancedSearch.showAddTagDialog(${doc.id})">+ Tag</button>
                 </div>
                 <div class="document-actions">
@@ -155,24 +160,16 @@ class AdvancedSearch {
 
     async addTag(documentId, tagName) {
         try {
-            const response = await fetch(`/api/documents/${documentId}/tags`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ tag: tagName })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to add tag');
-            }
+            // Use modernized endpoint that accepts tag_name
+            await api.tags.addToDocument(documentId, { tag_name: tagName });
 
             // Reload tags and refresh search
             await this.loadTags();
             await this.performAdvancedSearch();
+            notifications.show('Erfolg', 'Tag hinzugefügt', 'success');
         } catch (error) {
             console.error('Error adding tag:', error);
-            alert('Fehler beim Hinzufügen des Tags');
+            notifications.show('Fehler', 'Tag konnte nicht hinzugefügt werden', 'error');
         }
     }
 
@@ -180,20 +177,16 @@ class AdvancedSearch {
         if (!confirm('Tag wirklich entfernen?')) return;
 
         try {
-            const response = await fetch(`/api/tags/${tagId}`, {
-                method: 'DELETE'
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to remove tag');
-            }
+            // Correct API call: remove from document, not delete tag globally
+            await api.tags.removeFromDocument(documentId, tagId);
 
             // Reload tags and refresh search
             await this.loadTags();
             await this.performAdvancedSearch();
+            notifications.show('Erfolg', 'Tag entfernt', 'success');
         } catch (error) {
             console.error('Error removing tag:', error);
-            alert('Fehler beim Entfernen des Tags');
+            notifications.show('Fehler', 'Tag konnte nicht entfernt werden', 'error');
         }
     }
 
@@ -212,27 +205,14 @@ class AdvancedSearch {
         }
 
         try {
-            const response = await fetch('/api/searches/saved', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name: name,
-                    filters: this.currentFilters
-                })
-            });
+            await api.search.save(name, this.currentFilters);
 
-            if (!response.ok) {
-                throw new Error('Failed to save search');
-            }
-
-            alert('Suche gespeichert!');
+            notifications.show('Erfolg', 'Suche gespeichert!', 'success');
             await this.loadSavedSearches();
             this.closeSaveSearchDialog();
         } catch (error) {
             console.error('Error saving search:', error);
-            alert('Fehler beim Speichern der Suche');
+            notifications.show('Fehler', 'Suche konnte nicht gespeichert werden', 'error');
         }
     }
 
@@ -242,16 +222,20 @@ class AdvancedSearch {
 
         // Apply saved filters to UI
         if (search.filters.query) {
-            document.getElementById('search-query').value = search.filters.query;
+            const el = document.getElementById('search-query');
+            if (el) el.value = search.filters.query;
         }
         if (search.filters.category) {
-            document.getElementById('filter-category').value = search.filters.category;
+            const el = document.getElementById('filter-category');
+            if (el) el.value = search.filters.category;
         }
         if (search.filters.start_date) {
-            document.getElementById('filter-start-date').value = search.filters.start_date;
+            const el = document.getElementById('filter-start-date');
+            if (el) el.value = search.filters.start_date;
         }
         if (search.filters.end_date) {
-            document.getElementById('filter-end-date').value = search.filters.end_date;
+            const el = document.getElementById('filter-end-date');
+            if (el) el.value = search.filters.end_date;
         }
 
         // Perform search with saved filters
@@ -263,18 +247,12 @@ class AdvancedSearch {
         if (!confirm('Gespeicherte Suche wirklich löschen?')) return;
 
         try {
-            const response = await fetch(`/api/searches/saved/${searchId}`, {
-                method: 'DELETE'
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to delete search');
-            }
-
+            await api.search.deleteSaved(searchId);
             await this.loadSavedSearches();
+            notifications.show('Erfolg', 'Suche gelöscht', 'success');
         } catch (error) {
             console.error('Error deleting search:', error);
-            alert('Fehler beim Löschen der Suche');
+            notifications.show('Fehler', 'Suche konnte nicht gelöscht werden', 'error');
         }
     }
 
@@ -301,7 +279,10 @@ class AdvancedSearch {
         const container = document.getElementById('tag-suggestions');
         if (!container) return;
 
-        container.innerHTML = this.allTags.map(tag => `
+        // Ensure tags are unique strings
+        const uniqueTags = [...new Set(this.allTags.map(t => typeof t === 'object' ? t.name : t))];
+
+        container.innerHTML = uniqueTags.map(tag => `
             <label class="tag-checkbox-label">
                 <input type="checkbox" class="tag-checkbox" value="${tag}">
                 ${tag}
@@ -310,10 +291,17 @@ class AdvancedSearch {
     }
 
     clearFilters() {
-        document.getElementById('search-query').value = '';
-        document.getElementById('filter-category').value = '';
-        document.getElementById('filter-start-date').value = '';
-        document.getElementById('filter-end-date').value = '';
+        const query = document.getElementById('search-query');
+        if (query) query.value = '';
+
+        const cat = document.getElementById('filter-category');
+        if (cat) cat.value = '';
+
+        const start = document.getElementById('filter-start-date');
+        if (start) start.value = '';
+
+        const end = document.getElementById('filter-end-date');
+        if (end) end.value = '';
 
         // Uncheck all tag checkboxes
         document.querySelectorAll('.tag-checkbox').forEach(cb => cb.checked = false);
@@ -333,12 +321,16 @@ class AdvancedSearch {
         if (dialog) {
             dialog.classList.add('hidden');
         }
-        document.getElementById('search-name-input').value = '';
+        const input = document.getElementById('search-name-input');
+        if (input) input.value = '';
     }
 }
 
 // Initialize on page load
 let advancedSearch;
 document.addEventListener('DOMContentLoaded', () => {
-    advancedSearch = new AdvancedSearch();
+    // Only init if advanced search elements exist
+    if (document.getElementById('advanced-search-panel')) {
+        advancedSearch = new AdvancedSearch();
+    }
 });
