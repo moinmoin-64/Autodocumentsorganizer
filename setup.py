@@ -37,8 +37,16 @@ image_fast_ext = Extension(
     extra_link_args=['-fopenmp'] if sys.platform != 'win32' else [],
 )
 
+# Database Fast Extension (C) - Phase 3
+db_fast_ext = Extension(
+    'db_fast',
+    sources=['native/db_fast.c'],
+    libraries=['sqlite3'],
+    extra_compile_args=['/O2'] if sys.platform == 'win32' else ['-O3'],
+)
+
 # Extensions list
-ext_modules = [image_fast_ext]
+ext_modules = [image_fast_ext, db_fast_ext]
 
 # OCR Accelerator Extension (C++ with pybind11)
 if HAS_PYBIND11:
