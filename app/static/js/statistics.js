@@ -1,6 +1,7 @@
 /**
  * Statistics Module
  * Handles advanced statistics, budget tracking, and predictions
+ * Modernized with APIClient
  */
 
 class StatisticsModule {
@@ -45,8 +46,7 @@ class StatisticsModule {
 
     async loadMonthlyTrends() {
         try {
-            const response = await fetch(`/api/stats/monthly/${this.currentYear}`);
-            const data = await response.json();
+            const data = await api.stats.monthly(this.currentYear);
             this.renderTrendsChart(data);
         } catch (error) {
             console.error('Error loading trends:', error);
@@ -66,9 +66,11 @@ class StatisticsModule {
 
         // Add total expenses line
         const totals = new Array(12).fill(0);
-        Object.entries(data.total_by_month).forEach(([month, amount]) => {
-            totals[parseInt(month) - 1] = amount;
-        });
+        if (data.total_by_month) {
+            Object.entries(data.total_by_month).forEach(([month, amount]) => {
+                totals[parseInt(month) - 1] = amount;
+            });
+        }
 
         datasets.push({
             label: 'Gesamtausgaben',
@@ -123,25 +125,17 @@ class StatisticsModule {
         const data = Object.fromEntries(formData.entries());
 
         try {
-            const response = await fetch('/api/budgets', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    category: data.category,
-                    month: `${this.currentYear}-${new Date().getMonth() + 1}`, // Current month
-                    amount: parseFloat(data.amount)
-                })
+            await api.budgets.create({
+                category: data.category,
+                month: `${this.currentYear}-${new Date().getMonth() + 1}`, // Current month
+                amount: parseFloat(data.amount)
             });
 
-            if (response.ok) {
-                alert('Budget gespeichert!');
-                this.loadBudgets();
-            }
+            notifications.show('Erfolg', 'Budget gespeichert!', 'success');
+            this.loadBudgets();
         } catch (error) {
             console.error('Error saving budget:', error);
-            alert('Fehler beim Speichern des Budgets');
+            notifications.show('Fehler', 'Budget konnte nicht gespeichert werden', 'error');
         }
     }
 
@@ -151,8 +145,7 @@ class StatisticsModule {
 
         for (const cat of categories) {
             try {
-                const response = await fetch(`/api/stats/predictions/${cat}?months=3`);
-                const data = await response.json();
+                const data = await api.stats.predictions(cat, 3);
                 this.renderPrediction(cat, data);
             } catch (error) {
                 console.error(`Error predicting for ${cat}:`, error);
@@ -174,7 +167,7 @@ class StatisticsModule {
             container.appendChild(card);
         }
 
-        if (data.error) return;
+        if (data.error || !data.predictions || data.predictions.length === 0) return;
 
         const nextMonth = data.predictions[0];
         card.innerHTML = `

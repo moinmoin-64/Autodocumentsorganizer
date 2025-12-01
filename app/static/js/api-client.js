@@ -255,6 +255,28 @@ class SearchAPI extends APIClient {
     }
 }
 
+class ChatAPI extends APIClient {
+    constructor() {
+        super('/api/chat');
+    }
+
+    async send(message) {
+        const response = await this.post('', { message });
+        return response.data;
+    }
+}
+
+class BudgetsAPI extends APIClient {
+    constructor() {
+        super('/api/budgets');
+    }
+
+    async create(data) {
+        const response = await this.post('', data);
+        return response.data;
+    }
+}
+
 class UploadAPI extends APIClient {
     constructor() {
         super('/api');
@@ -284,6 +306,8 @@ const api = {
     tags: new TagsAPI(),
     stats: new StatsAPI(),
     search: new SearchAPI(),
+    chat: new ChatAPI(),
+    budgets: new BudgetsAPI(),
     upload: new UploadAPI(),
 
     // Direct access for custom calls
