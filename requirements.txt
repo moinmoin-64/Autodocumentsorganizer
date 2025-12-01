@@ -61,3 +61,6 @@ alembic==1.14.0
 # Additional (for compatibility)
 Pillow==11.0.0
 qrcode[pil]==8.0
+
+# Validation
+pydantic>=2.0.0
