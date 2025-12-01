@@ -21,40 +21,6 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.database import Database
-from app.search_engine import SearchEngine
-from app.data_extractor import DataExtractor
-from app.exporters import DataExporter
-from app.email_receiver import EmailReceiver
-from app.upload_handler import upload_bp
-from app.auth import auth_bp, init_auth
-from app.health import health_bp
-
-from apscheduler.schedulers.background import BackgroundScheduler
-
-logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
-
-# Flask App
-app = Flask(__name__, static_folder='static', static_url_path='')
-CORS(app)
-
-# Security Features
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-me-in-production')
-csrf = CSRFProtect(app)
-limiter = Limiter(
-    app=app,
-    key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://"
-)
-
-# Globale Objekte (mit Type Hints)
-db: Optional[Database] = None
-search_engine: Optional[SearchEngine] = None
-data_extractor: Optional[DataExtractor] = None
-config: Optional[Dict[str, Any]] = None
 
 
 def init_app(config_path: str = 'config.yaml') -> None:
@@ -211,6 +177,33 @@ def run_server(host: str = '0.0.0.0', port: int = 5001, debug: bool = False):
         logger.info("⏹️  Server gestoppt")
         scheduler.shutdown()
 
+
+# === Request/Response Middleware ===
+
+@app.before_request
+def before_request_handler():
+    """Track request start time"""
+    from flask import request
+    request.start_time = time.time()
+
+
+@app.after_request
+def after_request_handler(response):
+    """Add security headers and log requests"""
+    from flask import request
+    
+    # Add security headers
+    response = add_security_headers(response)
+    
+    # Log request
+    if hasattr(request, 'start_time'):
+        duration = time.time() - request.start_time
+        log_request(request, response, duration)
+    
+    return response
+
+
+# === Main ===
 
 if __name__ == '__main__':
     import argparse
