@@ -42,6 +42,26 @@ echo Mode: %EXPO_MODE%
 echo Port: %BACKEND_PORT%
 echo.
 
+REM Check for Native Extensions
+if exist "image_fast*.pyd" (
+    echo [OK] Native Image Processing gefunden
+) else (
+    echo [WARNUNG] Native Image Processing fehlt (nutze Python Fallback)
+)
+
+if exist "ocr_accelerator*.pyd" (
+    echo [OK] Native OCR Accelerator gefunden
+) else (
+    echo [WARNUNG] Native OCR Accelerator fehlt
+)
+
+if exist "search_indexer*.pyd" (
+    echo [OK] Native Search Indexer gefunden
+) else (
+    echo [WARNUNG] Native Search Indexer fehlt
+)
+echo.
+
 REM Check if venv exists
 if not exist "venv\Scripts\activate.bat" (
     echo [FEHLER] Virtual Environment nicht gefunden!

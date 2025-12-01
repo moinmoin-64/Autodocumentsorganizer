@@ -52,6 +52,26 @@ cd "$PROJECT_DIR"
 echo -e "${BLUE}Projekt: $PROJECT_DIR${NC}"
 echo ""
 
+# Check for Native Extensions
+if [ -f "image_fast"*.so ] || [ -f "image_fast"*.pyd ]; then
+    echo -e "${GREEN}✓ Native Image Processing gefunden${NC}"
+else
+    echo -e "${YELLOW}⚠ Native Image Processing fehlt (nutze Python Fallback)${NC}"
+fi
+
+if [ -f "ocr_accelerator"*.so ] || [ -f "ocr_accelerator"*.pyd ]; then
+    echo -e "${GREEN}✓ Native OCR Accelerator gefunden${NC}"
+else
+    echo -e "${YELLOW}⚠ Native OCR Accelerator fehlt${NC}"
+fi
+
+if [ -f "search_indexer"*.so ] || [ -f "search_indexer"*.pyd ]; then
+    echo -e "${GREEN}✓ Native Search Indexer gefunden${NC}"
+else
+    echo -e "${YELLOW}⚠ Native Search Indexer fehlt${NC}"
+fi
+echo ""
+
 # ==========================================
 # HELPER FUNCTIONS
 # ==========================================

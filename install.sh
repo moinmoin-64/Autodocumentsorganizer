@@ -396,7 +396,7 @@ fi
 # Requirements
 log INFO "Installiere Python Dependencies (kann 5-10 Min. dauern)..."
 if [ "$DRY_RUN" = false ]; then
-    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install Pillow qrcode[pil] pytest pytest-cov pybind11"
+    sudo -u "$REAL_USER" bash -c "source venv/bin/activate && pip install --upgrade pip setuptools wheel && pip install -r requirements.txt && pip install Pillow qrcode[pil] pytest pytest-cov pybind11 pydantic"
 fi
 log SUCCESS "Python-Pakete installiert"
 
@@ -570,6 +570,7 @@ SUMMARY_FILE="$REAL_HOME/installation_summary.txt"
     if command_exists npm && [ -d "$PROJECT_DIR/mobile/photo_app_expo/node_modules" ]; then 
         echo "  ✓ Expo App (SDK 54)"
     fi
+    echo "  ✓ Native Extensions (C/C++)"
     echo ""
     echo "🌐 ZUGRIFF:"
     echo "  Dashboard: http://$IP:5001"
