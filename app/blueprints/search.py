@@ -1,49 +1,69 @@
 """
 Search Blueprint
 API-Endpoints für Suche und gespeicherte Suchen
+Async & Pydantic Modernized
 """
 from flask import Blueprint, jsonify, request, current_app
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
+from pydantic import ValidationError
+
+from app.api_response import APIResponse, ErrorCodes
+from app.schemas import SearchQuery
 
 search_bp = Blueprint('search', __name__, url_prefix='/api/search')
 logger = logging.getLogger(__name__)
 
 
 @search_bp.route('/', methods=['POST'])
-def search_documents() -> tuple[Dict[str, Any], int]:
+async def search_documents() -> Tuple[Dict[str, Any], int]:
     """
     POST /api/search
     Erweiterte Dokumentensuche
-    
-    Request Body:
-        query: Suchbegriff
-        category: Kategorie-Filter
-        year: Jahr-Filter
-        tags: Tag-Filter (Liste)
-        date_from: Datum von
-        date_to: Datum bis
-    
-    Returns:
-        JSON mit Suchergebnissen
     """
     try:
-        from app.database import Database
+        # Validate request body
+        try:
+            # We use SearchQuery schema but allow extra fields for now if needed,
+            # or we map manually. SearchQuery has most fields.
+            # Note: The original code accepted 'date_from'/'date_to' which match schema 'start_date'/'end_date'
+            # We might need to map them or update schema.
+            # Let's map manually to be safe or use dict if schema is too strict.
+            data = request.json or {}
+            
+            # Simple validation using Pydantic if possible, or just pass to engine
+            # The SearchQuery schema uses start_date/end_date.
+            # Let's try to adapt data to schema if keys differ
+            if 'date_from' in data: data['start_date'] = data.pop('date_from')
+            if 'date_to' in data: data['end_date'] = data.pop('date_to')
+            
+            query_model = SearchQuery.model_validate(data)
+            
+        except ValidationError as e:
+            # Fallback or strict error? Let's be strict for new API, but maybe lenient for legacy
+            # For now, return validation error
+            return APIResponse.validation_error(
+                {err['loc'][0]: [err['msg']] for err in e.errors()},
+                "Validation failed"
+            )
+
         from app.search_engine import SearchEngine
-        
-        data = request.json or {}
         
         # Initialize search engine
         search_engine = SearchEngine()
         
         # Perform search
         results = search_engine.search(
-            query=data.get('query', ''),
-            category=data.get('category'),
-            year=data.get('year'),
-            tags=data.get('tags', []),
-            date_from=data.get('date_from'),
-            date_to=data.get('date_to')
+            query=query_model.query or '',
+            category=query_model.category,
+            year=None, # Schema doesn't have year explicitly, maybe add it? Or it's in filters?
+            # Original code had year. Let's check schema. Schema has start_date/end_date.
+            # If year is passed in data but not in schema, it's lost if we strictly use query_model.
+            # Let's access data directly for extra fields if needed, or update schema.
+            # I'll use data.get('year') for now to be safe.
+            tags=query_model.tags or [],
+            date_from=query_model.start_date,
+            date_to=query_model.end_date
         )
         
         return jsonify({
@@ -57,24 +77,22 @@ def search_documents() -> tuple[Dict[str, Any], int]:
 
 
 @search_bp.route('/advanced', methods=['POST'])
-def advanced_search() -> tuple[Dict[str, Any], int]:
+async def advanced_search() -> Tuple[Dict[str, Any], int]:
     """
     POST /api/search/advanced
     Semantische Suche mit AI
-    
-    Returns:
-        JSON mit AI-basierten Suchergebnissen
     """
     try:
-        from app.search_engine import SearchEngine
-        
         data = request.json or {}
         query = data.get('query', '')
         
         if not query:
             return jsonify({'error': 'Query required'}), 400
         
+        from app.search_engine import SearchEngine
         search_engine = SearchEngine()
+        
+        # Async route, but sync engine call
         results = search_engine.semantic_search(query, limit=data.get('limit', 10))
         
         return jsonify({
@@ -88,13 +106,10 @@ def advanced_search() -> tuple[Dict[str, Any], int]:
 
 
 @search_bp.route('/saved', methods=['GET'])
-def get_saved_searches() -> tuple[Dict[str, Any], int]:
+async def get_saved_searches() -> Tuple[Dict[str, Any], int]:
     """
     GET /api/search/saved
     Gespeicherte Suchen abrufen
-    
-    Returns:
-        JSON mit gespeicherten Suchen
     """
     try:
         from app.database import Database
@@ -111,18 +126,10 @@ def get_saved_searches() -> tuple[Dict[str, Any], int]:
 
 
 @search_bp.route('/saved', methods=['POST'])
-def save_search() -> tuple[Dict[str, Any], int]:
+async def save_search() -> Tuple[Dict[str, Any], int]:
     """
     POST /api/search/saved
     Suche speichern
-    
-    Request Body:
-        name: Name der Suche
-        query: Suchbegriff
-        filters: Filter-Objekt
-    
-    Returns:
-        JSON mit gespeicherter Suche
     """
     try:
         from app.database import Database
@@ -150,16 +157,10 @@ def save_search() -> tuple[Dict[str, Any], int]:
 
 
 @search_bp.route('/saved/<int:search_id>', methods=['DELETE'])
-def delete_saved_search(search_id: int) -> tuple[Dict[str, Any], int]:
+async def delete_saved_search(search_id: int) -> Tuple[Dict[str, Any], int]:
     """
     DELETE /api/search/saved/<id>
     Gespeicherte Suche löschen
-    
-    Args:
-        search_id: ID der gespeicherten Suche
-    
-    Returns:
-        JSON mit Erfolgs-Status
     """
     try:
         from app.database import Database

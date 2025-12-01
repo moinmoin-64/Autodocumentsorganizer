@@ -1,23 +1,28 @@
 """
 Statistics Blueprint
 API-Endpoints für Statistiken und Analytics
+Async & Pydantic Modernized
 """
 from flask import Blueprint, jsonify, request
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
+from datetime import datetime
+from pydantic import ValidationError
+
+from app.api_response import APIResponse, ErrorCodes
+# We import schemas but might not use them for all complex nested responses yet
+# unless we define comprehensive models for everything.
+# For now, we focus on async conversion.
 
 stats_bp = Blueprint('stats', __name__, url_prefix='/api/stats')
 logger = logging.getLogger(__name__)
 
 
 @stats_bp.route('/overview', methods=['GET'])
-def get_overview_stats() -> tuple[Dict[str, Any], int]:
+async def get_overview_stats() -> Tuple[Dict[str, Any], int]:
     """
     GET /api/stats/overview
     Übersichts-Statistiken
-    
-    Returns:
-        JSON mit Gesamt-Statistiken
     """
     try:
         from app.database import Database
@@ -26,6 +31,8 @@ def get_overview_stats() -> tuple[Dict[str, Any], int]:
         db = Database()
         stats_engine = StatisticsEngine()
         
+        # These calls are synchronous, blocking the thread.
+        # In a full async app, we'd await them or run in executor.
         stats = {
             'overview': db.get_overview_stats(),
             'trends': stats_engine.get_monthly_trends()
@@ -41,16 +48,10 @@ def get_overview_stats() -> tuple[Dict[str, Any], int]:
 
 
 @stats_bp.route('/year/<int:year>', methods=['GET'])
-def get_year_stats(year: int) -> tuple[Dict[str, Any], int]:
+async def get_year_stats(year: int) -> Tuple[Dict[str, Any], int]:
     """
     GET /api/stats/year/<year>
     Jahres-Statistiken
-    
-    Args:
-        year: Jahr
-    
-    Returns:
-        JSON mit Jahres-Statistiken
     """
     try:
         from app.database import Database
@@ -75,17 +76,10 @@ def get_year_stats(year: int) -> tuple[Dict[str, Any], int]:
 
 
 @stats_bp.route('/expenses', methods=['GET'])
-def get_expenses_analysis() -> tuple[Dict[str, Any], int]:
+async def get_expenses_analysis() -> Tuple[Dict[str, Any], int]:
     """
     GET /api/stats/expenses
     Ausgaben-Analyse
-    
-    Query Parameters:
-        year: Jahr (optional)
-        category: Kategorie (optional)
-    
-    Returns:
-        JSON mit Ausgaben-Analyse
     """
     try:
         from app.data_extractor import DataExtractor
@@ -122,16 +116,10 @@ def get_expenses_analysis() -> tuple[Dict[str, Any], int]:
 
 
 @stats_bp.route('/trends/<int:year>', methods=['GET'])
-def get_monthly_trends(year: int) -> tuple[Dict[str, Any], int]:
+async def get_monthly_trends(year: int) -> Tuple[Dict[str, Any], int]:
     """
     GET /api/stats/trends/<year>
     Monatliche Trends
-    
-    Args:
-        year: Jahr
-    
-    Returns:
-        JSON mit monatlichen Trends
     """
     try:
         from app.statistics_engine import StatisticsEngine
@@ -147,14 +135,10 @@ def get_monthly_trends(year: int) -> tuple[Dict[str, Any], int]:
 
 
 @stats_bp.route('/expenses/compare', methods=['GET'])
-def compare_expenses() -> tuple[Dict[str, Any], int]:
+async def compare_expenses() -> Tuple[Dict[str, Any], int]:
     """
     GET /api/stats/expenses/compare
     Vergleicht Ausgaben zweier Jahre
-    
-    Query Parameters:
-        year1: Erstes Jahr
-        year2: Zweites Jahr
     """
     try:
         year1 = int(request.args.get('year1', datetime.now().year - 1))
@@ -172,7 +156,7 @@ def compare_expenses() -> tuple[Dict[str, Any], int]:
 
 
 @stats_bp.route('/insurance/list', methods=['GET'])
-def list_insurances() -> tuple[Dict[str, Any], int]:
+async def list_insurances() -> Tuple[Dict[str, Any], int]:
     """
     GET /api/stats/insurance/list
     Liste aller Versicherungen
