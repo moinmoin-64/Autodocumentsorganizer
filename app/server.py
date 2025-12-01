@@ -9,18 +9,49 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 import yaml
+import time
 
 from flask import Flask, send_from_directory
-from flask_cors import CORS
 from flask_wtf.csrf import CSRFProtect
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 
 # Import eigener Module
 import sys
 sys.path.append(str(Path(__file__).parent.parent))
 
 from app.database import Database
+from app.search_engine import SearchEngine
+from app.data_extractor import DataExtractor
+from app.exporters import DataExporter
+from app.email_receiver import EmailReceiver
+from app.upload_handler import upload_bp
+from app.auth import auth_bp, init_auth
+from app.health import health_bp
+from app.logging_config import setup_logging, log_request
+from app.security_config import setup_security, add_security_headers
+
+from apscheduler.schedulers.background import BackgroundScheduler
+
+# Load environment variables
+load_dotenv()
+
+# Flask App
+app = Flask(__name__, static_folder='static', static_url_path='')
+
+# Setup Logging (early!)
+logger = setup_logging(app)
+
+# Setup Security (includes CORS & rate limiting)
+limiter = setup_security(app)
+
+# Security Features
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-me-in-production')
+csrf = CSRFProtect(app)
+
+# Globale Objekte (mit Type Hints)
+db: Optional[Database] = None
+search_engine: Optional[SearchEngine] = None
+data_extractor: Optional[DataExtractor] = None
+config: Optional[Dict[str, Any]] = None
 
 
 def init_app(config_path: str = 'config.yaml') -> None:
@@ -154,6 +185,33 @@ def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
 
+# === Request/Response Middleware ===
+
+@app.before_request
+def before_request_handler():
+    """Track request start time"""
+    from flask import request
+    request.start_time = time.time()
+
+
+@app.after_request
+def after_request_handler(response):
+    """Add security headers and log requests"""
+    from flask import request
+    
+    # Add security headers
+    response = add_security_headers(response)
+    
+    # Log request
+    if hasattr(request, 'start_time'):
+        duration = time.time() - request.start_time
+        log_request(request, response, duration)
+    
+    return response
+
+
+# === Main ===
+
 def run_server(host: str = '0.0.0.0', port: int = 5001, debug: bool = False):
     """
     Startet den Flask-Server
@@ -177,60 +235,6 @@ def run_server(host: str = '0.0.0.0', port: int = 5001, debug: bool = False):
         logger.info("⏹️  Server gestoppt")
         scheduler.shutdown()
 
-
-# === Request/Response Middleware ===
-
-@app.before_request
-def before_request_handler():
-    """Track request start time"""
-    from flask import request
-    request.start_time = time.time()
-
-
-@app.after_request
-def after_request_handler(response):
-    """Add security headers and log requests"""
-    from flask import request
-    
-    # Add security headers
-    response = add_security_headers(response)
-    
-    # Log request
-    if hasattr(request, 'start_time'):
-        duration = time.time() - request.start_time
-        log_request(request, response, duration)
-    
-    return response
-
-
-# === Main ===
-
-# === Request/Response Middleware ===
-
-@app.before_request
-def before_request_handler():
-    """Track request start time"""
-    from flask import request
-    request.start_time = time.time()
-
-
-@app.after_request
-def after_request_handler(response):
-    """Add security headers and log requests"""
-    from flask import request
-    
-    # Add security headers
-    response = add_security_headers(response)
-    
-    # Log request
-    if hasattr(request, 'start_time'):
-        duration = time.time() - request.start_time
-        log_request(request, response, duration)
-    
-    return response
-
-
-# === Main ===
 
 if __name__ == '__main__':
     import argparse
