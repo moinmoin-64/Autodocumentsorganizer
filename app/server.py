@@ -79,6 +79,10 @@ def init_app(config_path: str = 'config.yaml') -> None:
     search_engine = SearchEngine()
     data_extractor = DataExtractor(config_path)
     
+    # Init Redis
+    from app.redis_client import RedisClient
+    RedisClient() # Initialize singleton
+    
     # Indexiere Dokumente
     _reindex_search()
     

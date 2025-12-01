@@ -45,6 +45,17 @@ def health_check() -> tuple[Dict[str, Any], int]:
         }
     except Exception as e:
         status['components']['ollama'] = {'status': 'error', 'message': str(e)}
+
+    # Check Redis
+    try:
+        from app.redis_client import RedisClient
+        redis_client = RedisClient()
+        status['components']['redis'] = {
+            'status': 'ok' if redis_client.enabled else 'unavailable',
+            'host': redis_client.host
+        }
+    except Exception as e:
+        status['components']['redis'] = {'status': 'error', 'message': str(e)}
         
     # Check Disk Space
     try:

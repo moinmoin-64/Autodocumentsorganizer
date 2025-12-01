@@ -27,6 +27,15 @@ async def get_overview_stats() -> Tuple[Dict[str, Any], int]:
     try:
         from app.database import Database
         from app.statistics_engine import StatisticsEngine
+        from app.redis_client import RedisClient
+        
+        redis_client = RedisClient()
+        cache_key = "stats:overview"
+        
+        # Try cache
+        cached = redis_client.get(cache_key)
+        if cached:
+            return jsonify(cached), 200
         
         db = Database()
         stats_engine = StatisticsEngine()
@@ -39,6 +48,9 @@ async def get_overview_stats() -> Tuple[Dict[str, Any], int]:
         }
         
         db.close()
+        
+        # Cache result (5 minutes)
+        redis_client.set(cache_key, stats, expire=300)
         
         return jsonify(stats), 200
         
@@ -56,6 +68,15 @@ async def get_year_stats(year: int) -> Tuple[Dict[str, Any], int]:
     try:
         from app.database import Database
         from app.statistics_engine import StatisticsEngine
+        from app.redis_client import RedisClient
+        
+        redis_client = RedisClient()
+        cache_key = f"stats:year:{year}"
+        
+        # Try cache
+        cached = redis_client.get(cache_key)
+        if cached:
+            return jsonify(cached), 200
         
         db = Database()
         stats_engine = StatisticsEngine()
@@ -67,6 +88,9 @@ async def get_year_stats(year: int) -> Tuple[Dict[str, Any], int]:
         }
         
         db.close()
+        
+        # Cache result (1 hour)
+        redis_client.set(cache_key, stats, expire=3600)
         
         return jsonify(stats), 200
         
@@ -83,11 +107,20 @@ async def get_expenses_analysis() -> Tuple[Dict[str, Any], int]:
     """
     try:
         from app.data_extractor import DataExtractor
-        
-        extractor = DataExtractor()
+        from app.redis_client import RedisClient
         
         year = request.args.get('year')
         category = request.args.get('category', 'Rechnung')
+        
+        redis_client = RedisClient()
+        cache_key = f"stats:expenses:{category}:{year or 'all'}"
+        
+        # Try cache
+        cached = redis_client.get(cache_key)
+        if cached:
+            return jsonify(cached), 200
+        
+        extractor = DataExtractor()
         
         if year:
             data = extractor.get_year_data(category, int(year))
@@ -108,6 +141,9 @@ async def get_expenses_analysis() -> Tuple[Dict[str, Any], int]:
                 analysis['total_amount'] = float(data['amount'].sum()) if 'amount' in data.columns else 0
                 analysis['count'] = len(data)
         
+        # Cache result (1 hour)
+        redis_client.set(cache_key, analysis, expire=3600)
+        
         return jsonify(analysis), 200
         
     except Exception as e:
@@ -123,9 +159,21 @@ async def get_monthly_trends(year: int) -> Tuple[Dict[str, Any], int]:
     """
     try:
         from app.statistics_engine import StatisticsEngine
+        from app.redis_client import RedisClient
+        
+        redis_client = RedisClient()
+        cache_key = f"stats:trends:{year}"
+        
+        # Try cache
+        cached = redis_client.get(cache_key)
+        if cached:
+            return jsonify(cached), 200
         
         stats_engine = StatisticsEngine()
         trends = stats_engine.get_monthly_trends(year)
+        
+        # Cache result (1 hour)
+        redis_client.set(cache_key, trends, expire=3600)
         
         return jsonify(trends), 200
         
