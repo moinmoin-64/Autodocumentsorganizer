@@ -38,15 +38,20 @@ image_fast_ext = Extension(
 )
 
 # Database Fast Extension (C) - Phase 3
-db_fast_ext = Extension(
-    'db_fast',
-    sources=['native/db_fast.c'],
-    libraries=['sqlite3'],
-    extra_compile_args=['/O2'] if sys.platform == 'win32' else ['-O3'],
-)
+# Only build if sqlite3 is available
+db_fast_ext = None
+if sys.platform != 'win32':
+    db_fast_ext = Extension(
+        'db_fast',
+        sources=['native/db_fast.c'],
+        libraries=['sqlite3'],
+        extra_compile_args=['-O3'],
+    )
 
 # Extensions list
-ext_modules = [image_fast_ext, db_fast_ext]
+ext_modules = [image_fast_ext]
+if db_fast_ext:
+    ext_modules.append(db_fast_ext)
 
 # OCR Accelerator Extension (C++ with pybind11)
 if HAS_PYBIND11:
@@ -58,6 +63,16 @@ if HAS_PYBIND11:
         cxx_std=17,
     )
     ext_modules.append(ocr_ext)
+    
+    # Search Indexer Extension (C++ with pybind11) - Phase 4
+    search_ext = Pybind11Extension(
+        'search_indexer',
+        sources=['native/search_indexer.cpp'],
+        extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
+        cxx_std=17,
+    )
+    ext_modules.append(search_ext)
 
 setup(
     name='organisationsai-native',
