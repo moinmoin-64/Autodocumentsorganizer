@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: organisationsai
+  labels:
+    app: organisationsai
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: organisationsai
+  template:
+    metadata:
+      labels:
+        app: organisationsai
+    spec:
+      containers:
+      - name: app
+        image: organisationsai:latest
+        ports:
+        - containerPort: 5001
+          name: http
+        env:
+        - name: REDIS_HOST
+          value: redis-service
+        - name: REDIS_PORT
+          value: "6379"
+        - name: FLASK_ENV
+          value: production
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        - name: logs
+          mountPath: /app/logs
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: organisationsai-data-pvc
+      - name: logs
+        persistentVolumeClaim:
+          claimName: organisationsai-logs-pvc

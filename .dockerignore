@@ -1,0 +1,21 @@
+# Ignore Docker-related files
+.dockerignore
+*.log
+*.pyc
+__pycache__/
+.git/
+.github/
+.pytest_cache/
+.coverage
+htmlcov/
+venv/
+env/
+*.egg-info/
+build/
+dist/
+*.so
+*.pyd
+data/database.db
+data/uploads/
+data/Bilder/
+logs/

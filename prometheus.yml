@@ -1,0 +1,12 @@
+# Optional Prometheus configuration
+# To enable: docker-compose --profile monitoring up
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'organisationsai'
+    static_configs:
+      - targets: ['app:5001']
+    metrics_path: '/metrics'
