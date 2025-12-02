@@ -311,6 +311,48 @@ install_node() {
 }
 install_node
 
+# 4.5. Docker (Optional)
+install_docker() {
+    log INFO "Möchtest du Docker installieren? (Empfohlen für einfaches Deployment) [j/N]"
+    read -t 10 -n 1 -r DOCKER_REPLY || DOCKER_REPLY="n"
+    echo ""
+    
+    if [[ ! $DOCKER_REPLY =~ ^[Jj]$ ]]; then
+        log INFO "Docker Installation übersprungen"
+        return
+    fi
+    
+    if command_exists docker; then
+        log SUCCESS "Docker bereits installiert: $(docker --version)"
+        return
+    fi
+    
+    log INFO "Installiere Docker..."
+    if [ "$DRY_RUN" = false ]; then
+        # Docker installieren
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sh get-docker.sh
+        rm get-docker.sh
+        
+        # User zu docker group hinzufügen
+        usermod -aG docker "$REAL_USER"
+        
+        # Docker Compose installieren
+        COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep 'tag_name' | cut -d\" -f4)
+        curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        chmod +x /usr/local/bin/docker-compose
+        
+        # Docker starten
+        systemctl enable docker
+        systemctl start docker
+        
+        log SUCCESS "Docker installiert: $(docker --version)"
+        log SUCCESS "Docker Compose installiert: $(docker-compose --version)"
+        log WARN "WICHTIG: Logout/Login erforderlich für Docker-Berechtigung!"
+    fi
+}
+install_docker
+
 # 5. Ollama
 install_ollama() {
     if [ "$SKIP_OLLAMA" = true ]; then
@@ -571,13 +613,19 @@ SUMMARY_FILE="$REAL_HOME/installation_summary.txt"
         echo "  ✓ Expo App (SDK 54)"
     fi
     echo "  ✓ Native Extensions (C/C++)"
+    if command_exists docker; then echo "  ✓ Docker $(docker --version | awk '{print $3}' | tr -d ',')"; fi
     echo ""
     echo "🌐 ZUGRIFF:"
-    echo "  Dashboard: http://$IP:5001"
-    echo "  Fotos:     http://$IP:5001/photos.html"
+    echo "  Dashboard:   http://$IP:5001"
+    echo "  Fotos:       http://$IP:5001/photos.html"
+    echo "  Health:      http://$IP:5001/api/monitoring/health"
+    echo "  Metrics:     http://$IP:5001/metrics"
     echo ""
     echo "🚀 STARTEN:"
     echo "  Development: cd $PROJECT_DIR && ./start_dev.sh"
+    if command_exists docker; then
+        echo "  Docker:      cd $PROJECT_DIR && docker-compose up -d"
+    fi
     echo "  Production:  systemctl status document-manager"
     echo ""
     echo "📁 DATEN:"
