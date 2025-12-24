@@ -27,6 +27,7 @@ from app.upload_handler import upload_bp
 from app.auth import auth_bp, init_auth
 from app.health import health_bp
 from app.logging_config import setup_logging, log_request
+from app.monitoring import record_request_metrics
 from app.security_config import setup_security, add_security_headers
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -207,7 +208,6 @@ def before_request_handler():
 def after_request_handler(response):
     """Add security headers and log requests"""
     from flask import request
-    from app.monitoring import record_request_metrics
     
     # Add security headers
     response = add_security_headers(response)

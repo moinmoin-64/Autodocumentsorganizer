@@ -56,7 +56,12 @@ class TestDocumentsAPI:
     def test_get_document_success(self, client, db, sample_document):
         """Test getting existing document"""
         # Create document
-        doc_id = db.add_document(**sample_document)
+        doc_id = db.add_document(
+            filepath=sample_document['filepath'],
+            category=sample_document['category'],
+            subcategory=sample_document['subcategory'],
+            document_data=sample_document
+        )
         
         # Get document
         response = client.get(f'/api/documents/{doc_id}')
@@ -70,7 +75,12 @@ class TestDocumentsAPI:
     def test_delete_document_success(self, client, db, sample_document):
         """Test deleting document"""
         # Create document
-        doc_id = db.add_document(**sample_document)
+        doc_id = db.add_document(
+            filepath=sample_document['filepath'],
+            category=sample_document['category'],
+            subcategory=sample_document['subcategory'],
+            document_data=sample_document
+        )
         
         # Delete document
         response = client.delete(f'/api/documents/{doc_id}')
@@ -88,7 +98,12 @@ class TestDocumentsAPI:
     def test_update_document_success(self, client, db, sample_document):
         """Test updating document"""
         # Create document
-        doc_id = db.add_document(**sample_document)
+        doc_id = db.add_document(
+            filepath=sample_document['filepath'],
+            category=sample_document['category'],
+            subcategory=sample_document['subcategory'],
+            document_data=sample_document
+        )
         
         # Update document
         update_data = {'category': 'Receipt'}
@@ -104,7 +119,12 @@ class TestDocumentsAPI:
         
     def test_update_document_no_data(self, client, db, sample_document):
         """Test updating document with no data"""
-        doc_id = db.add_document(**sample_document)
+        doc_id = db.add_document(
+            filepath=sample_document['filepath'],
+            category=sample_document['category'],
+            subcategory=sample_document['subcategory'],
+            document_data=sample_document
+        )
         
         response = client.put(f'/api/documents/{doc_id}')
         assert response.status_code == 422  # Validation error
@@ -112,12 +132,22 @@ class TestDocumentsAPI:
     def test_filter_by_category(self, client, db, sample_document):
         """Test filtering documents by category"""
         # Create documents with different categories
-        db.add_document(**sample_document)
+        db.add_document(
+            filepath=sample_document['filepath'],
+            category=sample_document['category'],
+            subcategory=sample_document['subcategory'],
+            document_data=sample_document
+        )
         
         doc2 = sample_document.copy()
         doc2['category'] = 'Receipt'
         doc2['filepath'] = '/tmp/test2.pdf'
-        db.add_document(**doc2)
+        db.add_document(
+            filepath=doc2['filepath'],
+            category=doc2['category'],
+            subcategory=doc2['subcategory'],
+            document_data=doc2
+        )
         
         # Filter by category
         response = client.get('/api/documents?category=Invoice')
@@ -130,7 +160,12 @@ class TestDocumentsAPI:
     def test_search_documents(self, client, db, sample_document):
         """Test full-text search"""
         # Create document
-        db.add_document(**sample_document)
+        db.add_document(
+            filepath=sample_document['filepath'],
+            category=sample_document['category'],
+            subcategory=sample_document['subcategory'],
+            document_data=sample_document
+        )
         
         # Search
         response = client.get('/api/documents?query=test')
@@ -148,7 +183,12 @@ class TestDocumentLifecycle:
         """Test create -> read -> update -> delete"""
         
         # Create
-        doc_id = db.add_document(**sample_document)
+        doc_id = db.add_document(
+            filepath=sample_document['filepath'],
+            category=sample_document['category'],
+            subcategory=sample_document['subcategory'],
+            document_data=sample_document
+        )
         assert doc_id > 0
         
         # Read

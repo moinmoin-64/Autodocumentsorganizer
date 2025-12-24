@@ -7,7 +7,8 @@ watchdog==6.0.0
 APScheduler==3.11.0
 
 # Web Server
-Flask==3.1.0
+Flask[async]==3.1.0
+asgiref==3.11.0
 Flask-Cors==5.0.0
 Flask-Login==0.6.3
 Flask-WTF==1.2.2
@@ -51,6 +52,7 @@ prometheus-client==0.21.1
 
 # Semantic Search
 sentence-transformers==3.3.1
+tf-keras==2.20.1
 numpy==2.1.3
 scikit-learn==1.6.0
 

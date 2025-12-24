@@ -23,6 +23,14 @@ from dateutil import parser as date_parser
 # Text-Verarbeitung
 from langdetect import detect
 
+# Metrics
+from app.metrics import (
+    PROCESSING_DURATION_SECONDS,
+    DOCUMENT_PROCESSED_TOTAL,
+    OCR_DURATION_SECONDS,
+    OCR_REQUESTS_TOTAL
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,9 +78,6 @@ class DocumentProcessor:
         """
         Verarbeitet ein Dokument komplett
         """
-        # Lazy Import um Zyklen zu vermeiden
-        from app.metrics import PROCESSING_DURATION_SECONDS, DOCUMENT_PROCESSED_TOTAL
-        
         start_time = datetime.now()
         try:
             with PROCESSING_DURATION_SECONDS.labels(stage='total').time():
@@ -269,8 +274,6 @@ class DocumentProcessor:
             
             with Image.open(processed_path) as image:
                 # OCR Ensemble nutzen
-                from app.metrics import OCR_DURATION_SECONDS, OCR_REQUESTS_TOTAL
-                
                 OCR_REQUESTS_TOTAL.labels(engine='ensemble', language=self.tesseract_lang).inc()
                 
                 with OCR_DURATION_SECONDS.observe():

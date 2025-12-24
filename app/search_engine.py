@@ -242,7 +242,7 @@ def main():
         {'id': 3, 'filename': 'mietvertrag.pdf', 'text': 'Mietvertrag Wohnung Berlin'},
     ]
     
-    engine = BM25SearchEngine()
+    engine = SearchEngine()
     engine.index_documents(docs)
     
     # Suche

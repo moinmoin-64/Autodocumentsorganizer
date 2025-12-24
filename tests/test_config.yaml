@@ -1,9 +1,9 @@
 
 system:
   storage:
-    base_path: "C:/Users/olist/AppData/Local/Temp/tmpnsh_bi0_/storage"
-    data_path: "C:/Users/olist/AppData/Local/Temp/tmpnsh_bi0_/data"
-    structure_file: "C:/Users/olist/AppData/Local/Temp/tmpnsh_bi0_/structure.json"
+    base_path: "C:/Users/olist/AppData/Local/Temp/tmpfrp7pbiy/storage"
+    data_path: "C:/Users/olist/AppData/Local/Temp/tmpfrp7pbiy/data"
+    structure_file: "C:/Users/olist/AppData/Local/Temp/tmpfrp7pbiy/structure.json"
 
 web:
   host: "0.0.0.0"
@@ -17,7 +17,7 @@ auth:
     admin: "admin123"
 
 database:
-  path: "C:/Users/olist/AppData/Local/Temp/tmpnsh_bi0_/test.db"
+  path: "C:/Users/olist/AppData/Local/Temp/tmpfrp7pbiy/test.db"
 
 ocr:
   engine: "tesseract"

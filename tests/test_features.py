@@ -16,7 +16,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.database import Database
 from app.cache import CacheManager
-from app.metrics import MetricsManager
 from app.semantic_search import SemanticSearch
 from app.ocr_ensemble import OCREnsemble
 
@@ -92,6 +91,8 @@ database:
         """Testet Metrics Manager"""
         print("\n--- Test: Metrics ---")
         
+        from app.metrics import MetricsManager, SYSTEM_CPU_USAGE_PERCENT
+
         # Mock psutil um System-Calls zu vermeiden
         with patch('psutil.virtual_memory') as mock_mem, \
              patch('psutil.cpu_percent') as mock_cpu:
@@ -102,7 +103,6 @@ database:
             metrics = MetricsManager()
             metrics.update_system_metrics()
             
-            from app.metrics import SYSTEM_CPU_USAGE_PERCENT
             # Da Prometheus Client global ist, ist das Testen des Werts schwierig ohne Registry-Reset
             # Wir prüfen nur ob kein Fehler fliegt
             

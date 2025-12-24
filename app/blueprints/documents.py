@@ -16,7 +16,7 @@ documents_bp = Blueprint('documents', __name__, url_prefix='/api/documents')
 logger = logging.getLogger(__name__)
 
 
-@documents_bp.route('/', methods=['GET'])
+@documents_bp.route('', methods=['GET'])
 async def list_documents() -> Tuple[Dict[str, Any], int]:
     """
     GET /api/documents

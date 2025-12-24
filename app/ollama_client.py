@@ -122,18 +122,15 @@ Antworte präzise und hilfreich auf Deutsch.
                 system_prompt += f"Gesamtausgaben: {context['total_expenses']} EUR\n"
             
             if 'categories' in context:
-                system_prompt += f"Kategorien: {', '.join(context['categories'].keys())}\n"
-            
-            system_prompt += "\n"
+                system_prompt += f"Top-Kategorien: {', '.join(context['categories'])}\n"
         
-        # Kombiniere
-        full_prompt = system_prompt + f"Benutzer: {message}\nAssistent:"
-        
-        return full_prompt
-    
+        # User-Nachricht anhängen
+        prompt = f"{system_prompt}\nBenutzer: {message}\nAssistent:"
+        return prompt
+
     def _fallback_response(self, message: str) -> str:
         """
-        Fallback-Antworten wenn Ollama nicht verfügbar
+        Generiert einfache Fallback-Antwort bei Ollama-Ausfall
         
         Args:
             message: Benutzer-Nachricht
