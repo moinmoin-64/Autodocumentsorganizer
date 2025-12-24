@@ -126,7 +126,11 @@ class TestDocumentsAPI:
             document_data=sample_document
         )
         
-        response = client.put(f'/api/documents/{doc_id}')
+        response = client.put(
+            f'/api/documents/{doc_id}',
+            data=json.dumps({}),
+            content_type='application/json'
+        )
         assert response.status_code == 422  # Validation error
         
     def test_filter_by_category(self, client, db, sample_document):

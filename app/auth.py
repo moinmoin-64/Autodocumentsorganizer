@@ -29,6 +29,21 @@ def init_auth(app, config_path='config.yaml'):
     """Initialisiert Auth für die App"""
     logger.info("Initialisiere Authentifizierung...")
     
+    # Check if login_manager has already been initialized for this app instance
+    # Flask-Login stores its manager in app.extensions['login']
+    if not app.extensions.get('login', {}).get('login_manager'):
+        login_manager.init_app(app)
+
+        @login_manager.user_loader
+        def load_user(user_id):
+            return User(user_id)
+
+        @login_manager.unauthorized_handler
+        def unauthorized():
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Unauthorized'}), 401
+            return redirect('/login.html')
+            
     # Lade Config
     with open(config_path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f)
@@ -41,14 +56,6 @@ def init_auth(app, config_path='config.yaml'):
     
     # Lade User-Daten (unterstützt sowohl Klartext als auch gehashte Passwörter)
     app.config['AUTH_USERS'] = config.get('auth', {}).get('users', {})
-    
-    login_manager.init_app(app)
-
-    @login_manager.unauthorized_handler
-    def unauthorized():
-        if request.path.startswith('/api/'):
-            return jsonify({'error': 'Unauthorized'}), 401
-        return redirect('/login.html')
 
 def _check_password(stored_password: str, provided_password: str) -> bool:
     """

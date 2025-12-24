@@ -220,6 +220,12 @@ async def update_document(doc_id: int) -> Tuple[Dict[str, Any], int]:
                 "Validation failed"
             )
 
+        # Ensure request is not empty
+        if not update_data.model_dump(exclude_unset=True):
+            return APIResponse.validation_error(
+                {}, "Request body cannot be empty."
+            )
+
         from app.database import Database
         
         db = Database()

@@ -246,6 +246,45 @@ class Database:
             logger.error(f"Fehler bei erweiterter Suche: {e}")
             return []
 
+    def count_documents(
+        self,
+        query: Optional[str] = None,
+        category: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        year: Optional[int] = None
+    ) -> int:
+        """Counts documents based on the provided filters."""
+        try:
+            with get_db() as session:
+                q = session.query(Document)
+
+                if category:
+                    q = q.filter(Document.category == category)
+
+                if start_date:
+                    q = q.filter(Document.date_document >= start_date)
+
+                if end_date:
+                    q = q.filter(Document.date_document <= end_date)
+                    
+                if year:
+                    q = q.filter(func.strftime('%Y', Document.date_document) == str(year))
+
+                if query:
+                    search = f"%{query}%"
+                    q = q.filter(or_(
+                        Document.filename.ilike(search),
+                        Document.summary.ilike(search),
+                        Document.keywords.ilike(search)
+                    ))
+
+                # Use func.count for efficiency
+                count_q = q.statement.with_only_columns(func.count()).order_by(None)
+                return session.execute(count_q).scalar() or 0
+        except Exception as e:
+            logger.error(f"Error counting documents: {e}")
+            return 0
     # --- Tags ---
 
     def create_tag(self, name: str, color: str = '#808080') -> Optional[int]:
@@ -552,11 +591,11 @@ class Database:
         return {
             'id': doc.id,
             'filename': doc.filename,
-            'filepath': doc.filepath,
+            'file_path': doc.filepath,
             'category': doc.category,
             'subcategory': doc.subcategory,
             'date_document': doc.date_document.isoformat() if doc.date_document else None,
-            'date_added': doc.date_added.isoformat() if doc.date_added else None,
+            'upload_date': doc.date_added.isoformat() if doc.date_added else None,
             'summary': doc.summary,
             'keywords': keywords,
             'full_text': doc.full_text,

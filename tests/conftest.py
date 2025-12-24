@@ -59,11 +59,21 @@ def client(app):
 
 
 @pytest.fixture
-def db():
-    """Database instance for tests"""
-    database = Database()
-    yield database
-    database.close()
+def db(app):
+    """
+    Database instance for tests, with automatic data cleanup.
+    This fixture ensures a clean database for every test function.
+    """
+    # --- Cleanup before test ---
+    # The 'app' fixture, which has session scope, has already created the tables.
+    # We just need to delete the data from them.
+    with engine.connect() as connection:
+        transaction = connection.begin()
+        for table in reversed(Base.metadata.sorted_tables):
+            connection.execute(table.delete())
+        transaction.commit()
+        
+    yield Database()
 
 
 @pytest.fixture
