@@ -1,0 +1,268 @@
+/**
+ * Error Handler - TypeScript Version
+ * Zentrale Fehlerbehandlung mit Toast Notifications
+ */
+import { APIError } from './api-client';
+/**
+ * Error Handler für zentrale Fehlerbehandlung
+ */
+export class ErrorHandler {
+    constructor() {
+        this.toastColors = {
+            success: '#10b981',
+            error: '#ef4444',
+            warning: '#f59e0b',
+            info: '#3b82f6'
+        };
+        this.toastIcons = {
+            success: '✓',
+            error: '✗',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+        this.toastContainer = this.createToastContainer();
+        this.addStyles();
+    }
+    /**
+     * Create or retrieve toast container
+     */
+    createToastContainer() {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 10000;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+            `;
+            document.body.appendChild(container);
+        }
+        return container;
+    }
+    /**
+     * Add CSS animations
+     */
+    addStyles() {
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+
+            @keyframes slideOut {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(400px);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    /**
+     * Show toast notification
+     */
+    showToast(message, type = 'info', duration = 3000) {
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        const color = this.toastColors[type] || this.toastColors.info;
+        const icon = this.toastIcons[type] || this.toastIcons.info;
+        toast.style.cssText = `
+            background: ${color};
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 250px;
+            max-width: 400px;
+            animation: slideIn 0.3s ease-out;
+            font-size: 14px;
+        `;
+        const closeButton = document.createElement('button');
+        closeButton.innerHTML = '×';
+        closeButton.style.cssText = `
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        `;
+        closeButton.onmouseover = () => closeButton.style.opacity = '1';
+        closeButton.onmouseout = () => closeButton.style.opacity = '0.7';
+        closeButton.onclick = () => toast.remove();
+        toast.innerHTML = `
+            <span style="font-size: 18px; font-weight: bold;">${icon}</span>
+            <span style="flex: 1;">${message}</span>
+        `;
+        toast.appendChild(closeButton);
+        this.toastContainer.appendChild(toast);
+        // Auto-remove
+        if (duration > 0) {
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
+        return toast;
+    }
+    /**
+     * Show success toast
+     */
+    showSuccess(message, duration = 3000) {
+        return this.showToast(message, 'success', duration);
+    }
+    /**
+     * Show error toast
+     */
+    showError(message, duration = 5000) {
+        return this.showToast(message, 'error', duration);
+    }
+    /**
+     * Show warning toast
+     */
+    showWarning(message, duration = 4000) {
+        return this.showToast(message, 'warning', duration);
+    }
+    /**
+     * Show info toast
+     */
+    showInfo(message, duration = 3000) {
+        return this.showToast(message, 'info', duration);
+    }
+    /**
+     * Handle API errors
+     */
+    handleAPIError(error) {
+        console.error('API Error:', error);
+        if (error instanceof APIError) {
+            switch (error.code) {
+                case 'NOT_FOUND':
+                    this.showError('Resource nicht gefunden');
+                    break;
+                case 'VALIDATION_ERROR': {
+                    const fields = (error.details?.fields || {});
+                    const fieldErrors = Object.entries(fields)
+                        .map(([field, errors]) => `${field}: ${errors.join(', ')}`)
+                        .join('<br>');
+                    this.showError(`Validierung fehlgeschlagen:<br>${fieldErrors}`, 7000);
+                    break;
+                }
+                case 'UNAUTHORIZED':
+                    this.showError('Nicht autorisiert. Bitte anmelden.');
+                    setTimeout(() => { window.location.href = '/login'; }, 2000);
+                    break;
+                case 'FORBIDDEN':
+                    this.showError('Zugriff verweigert');
+                    break;
+                case 'SERVER_ERROR':
+                    this.showError('Server-Fehler. Bitte später erneut versuchen.');
+                    break;
+                default:
+                    this.showError(error.message || 'Ein unerwarteter Fehler ist aufgetreten');
+            }
+        }
+        else {
+            this.showError(error.message || 'Netzwerkfehler');
+        }
+    }
+    /**
+     * Show confirmation dialog
+     */
+    confirm(message, onConfirm, onCancel) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10001;
+        `;
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 90%;
+        `;
+        dialog.innerHTML = `
+            <h3 style="margin: 0 0 16px 0; font-size: 18px; color: #111;">Bestätigung</h3>
+            <p style="margin: 0 0 20px 0; color: #666;">${message}</p>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button id="cancel-btn" style="
+                    padding: 8px 16px;
+                    border: 1px solid #ddd;
+                    background: white;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 14px;
+                ">Abbrechen</button>
+                <button id="confirm-btn" style="
+                    padding: 8px 16px;
+                    border: none;
+                    background: #3b82f6;
+                    color: white;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 14px;
+                ">Bestätigen</button>
+            </div>
+        `;
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+        const confirmBtn = dialog.querySelector('#confirm-btn');
+        const cancelBtn = dialog.querySelector('#cancel-btn');
+        if (confirmBtn) {
+            confirmBtn.onclick = () => {
+                overlay.remove();
+                onConfirm?.();
+            };
+        }
+        if (cancelBtn) {
+            cancelBtn.onclick = () => {
+                overlay.remove();
+                onCancel?.();
+            };
+        }
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+                onCancel?.();
+            }
+        };
+    }
+}
+// Global instance
+export const errorHandler = new ErrorHandler();
+// Export
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { ErrorHandler, errorHandler };
+}
+//# sourceMappingURL=error-handler.js.map

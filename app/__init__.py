@@ -14,6 +14,7 @@ from .data_extractor import DataExtractor
 from .database import Database
 from .search_engine import SearchEngine
 from .ollama_client import OllamaClient
+from .server import create_app, init_app, db
 
 __all__ = [
     'ScannerHandler',
@@ -24,4 +25,8 @@ __all__ = [
     'Database',
     'SearchEngine',
     'OllamaClient',
+    'create_app',
+    'init_app',
+    'db',
 ]
+
