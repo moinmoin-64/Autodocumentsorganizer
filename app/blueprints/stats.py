@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 async def get_overview_stats() -> Tuple[Dict[str, Any], int]:
     """
     GET /api/stats/overview
-    Übersichts-Statistiken
+    Übersichts-Statistiken - mit Caching & Pagination
     """
     try:
         from app.database import Database
@@ -32,10 +32,11 @@ async def get_overview_stats() -> Tuple[Dict[str, Any], int]:
         redis_client = RedisClient()
         cache_key = "stats:overview"
         
-        # Try cache
+        # Try cache (longer TTL for overview - 1 hour)
         cached = redis_client.get(cache_key)
         if cached:
-            return jsonify(cached), 200
+            logger.debug(f"Cache hit for {cache_key}")
+            return jsonify({"cached": True, **cached}), 200
         
         db = Database()
         stats_engine = StatisticsEngine()
@@ -49,14 +50,18 @@ async def get_overview_stats() -> Tuple[Dict[str, Any], int]:
         
         db.close()
         
-        # Cache result (5 minutes)
-        redis_client.set(cache_key, stats, expire=300)
+        # Cache result (1 hour TTL) - longer for less volatile data
+        redis_client.set(cache_key, stats, expire=3600)
         
-        return jsonify(stats), 200
+        return jsonify({"cached": False, **stats}), 200
         
     except Exception as e:
-        logger.error(f"Error getting overview stats: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error getting overview stats: {e}", exc_info=True)
+        return APIResponse.error(
+            ErrorCodes.INTERNAL_ERROR,
+            "Statistiken konnten nicht geladen werden",
+            {"error": str(e)}
+        )
 
 
 @stats_bp.route('/year/<int:year>', methods=['GET'])

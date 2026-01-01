@@ -1,6 +1,6 @@
 
 system:
   storage:
-    base_path: "C:/Users/olist/AppData/Local/Temp/tmpqmhdges5/storage"
+    base_path: "C:/Users/olist/AppData/Local/Temp/tmp1kzjb8is/storage"
 database:
-  path: "C:/Users/olist/AppData/Local/Temp/tmpqmhdges5/test_features.db"
+  path: "C:/Users/olist/AppData/Local/Temp/tmp1kzjb8is/test_features.db"

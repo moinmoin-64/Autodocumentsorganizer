@@ -90,7 +90,7 @@ startxref
             categorizer = DocumentCategorizer(integration_setup['config'])
             
             # Verarbeite Dokument
-            doc_data = processor.process(str(integration_setup['test_pdf']))
+            doc_data = processor.process_document(str(integration_setup['test_pdf']))
             
             # Kategorisiere
             category, subcategory, confidence = categorizer.categorize(doc_data)
@@ -114,13 +114,17 @@ class TestDatabaseWorkflow:
         from datetime import datetime
         
         # 1. Insert
-        doc_id = mock_database.insert_document({
-            'filename': 'lifecycle_test.pdf',
-            'filepath': '/path/to/file.pdf',
-            'category': 'Rechnung',
-            'date_document': datetime(2024, 1, 15),
-            'full_text': 'Test content for lifecycle'
-        })
+        doc_id = mock_database.add_document(
+            filepath='/path/to/file.pdf',
+            category='Rechnung',
+            subcategory='Allgemein',
+            document_data={
+                'filename': 'lifecycle_test.pdf',
+                'text': 'Test content for lifecycle',
+                'keywords': []
+            },
+            date_document=datetime(2024, 1, 15)
+        )
         
         assert doc_id > 0
         
@@ -152,7 +156,16 @@ class TestDatabaseWorkflow:
         tag2_id = mock_database.create_tag('Urgent', '#FFA500')
         
         # Erstelle Dokument
-        doc_id = mock_database.insert_document({'filename': 'tagged_doc.pdf'})
+        doc_id = mock_database.add_document(
+            filepath='/path/to/tagged_doc.pdf',
+            category='Sonstiges',
+            subcategory='Tags',
+            document_data={
+                'filename': 'tagged_doc.pdf',
+                'text': 'Document with tags', 
+                'keywords': []
+            }
+        )
         
         # Tags hinzufügen
         mock_database.add_tag_to_document(doc_id, tag1_id)

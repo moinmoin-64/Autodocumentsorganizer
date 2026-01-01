@@ -9,6 +9,7 @@ from flask import Blueprint, request, jsonify, session, current_app, redirect
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import yaml
+from typing import Dict # Hinzugefügt
 
 logger = logging.getLogger(__name__)
 
@@ -25,32 +26,26 @@ class User(UserMixin):
 def load_user(user_id):
     return User(user_id)
 
-def init_auth(app, config_path='config.yaml'):
+def init_auth(app, config: Dict): # config_path durch config: Dict ersetzt
     """Initialisiert Auth für die App"""
     logger.info("Initialisiere Authentifizierung...")
     
-    # Check if login_manager has already been initialized for this app instance
-    # Flask-Login stores its manager in app.extensions['login']
-    if not app.extensions.get('login', {}).get('login_manager'):
-        login_manager.init_app(app)
+    # user_loader und unauthorized_handler werden einmalig beim init_app(app) registriert
+    # und müssen nicht bei jeder init_auth() Registrierung wiederholt werden.
+    # Da init_app(app) jetzt in server.py erfolgt, müssen wir hier nichts wiederholen.
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User(user_id)
 
-        @login_manager.user_loader
-        def load_user(user_id):
-            return User(user_id)
-
-        @login_manager.unauthorized_handler
-        def unauthorized():
-            if request.path.startswith('/api/'):
-                return jsonify({'error': 'Unauthorized'}), 401
-            return redirect('/login.html')
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Unauthorized'}), 401
+        return redirect('/login.html')
             
-    # Lade Config
-    with open(config_path, 'r', encoding='utf-8') as f:
-        config = yaml.safe_load(f)
-    
     # Secret Key aus ENV oder Config
-    secret_key = os.getenv('SECRET_KEY') or config['web'].get('secret_key')
-    if secret_key == 'change_this_to_something_secure':
+    secret_key = os.getenv('SECRET_KEY') or config.get('web', {}).get('secret_key', 'dev-key-change-me-in-production')
+    if secret_key == 'dev-key-change-me-in-production': # Prüfe auf Standardwert
         logger.warning("⚠️  WARNUNG: Standard Secret Key wird verwendet! Setze SECRET_KEY als Umgebungsvariable!")
     app.secret_key = secret_key
     

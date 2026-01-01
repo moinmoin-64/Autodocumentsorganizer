@@ -14,6 +14,7 @@ import os
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import numpy as np # Hinzugefügt
 from app.database import Database
 from app.cache import CacheManager
 from app.semantic_search import SemanticSearch
@@ -78,7 +79,7 @@ database:
         mock_redis.side_effect = Exception("Redis connection failed")
         
         cache = CacheManager()
-        self.assertFalse(cache.use_redis)
+        self.assertFalse(cache.enabled)
         
         # Test Memory Cache
         cache.set('test_key', 'test_value')
@@ -114,7 +115,7 @@ database:
         print("\n--- Test: Semantic Search ---")
         
         # Mock Embedding Generation
-        mock_model.return_value.encode.return_value = [0.1, 0.2, 0.3]
+        mock_model.return_value.encode.return_value = np.array([0.1, 0.2, 0.3])
         
         semantic = SemanticSearch()
         embedding = semantic.generate_embedding("Test Text")
@@ -135,14 +136,18 @@ database:
         print("✅ Semantic Search Logic funktioniert")
 
     @patch('app.ocr_ensemble.pytesseract.image_to_string')
-    def test_ocr_ensemble(self, mock_tesseract):
+    @patch('app.ocr_ensemble.pytesseract.image_to_data')
+    @patch('PIL.Image.open')
+    def test_ocr_ensemble(self, mock_image_open, mock_tesseract_data, mock_tesseract_string):
         """Testet OCR Ensemble"""
         print("\n--- Test: OCR Ensemble ---")
         
-        mock_tesseract.return_value = "Tesseract Result"
+        mock_image_open.return_value = MagicMock() # Mock the image object
+        mock_tesseract_string.return_value = "Tesseract Result"
+        mock_tesseract_data.return_value = {'text': ['Tesseract', 'Result'], 'conf': [90, 80]} # Mock image_to_data
         
         # Test ohne EasyOCR (Default Mock)
-        ensemble = OCREnsemble()
+        ensemble = OCREnsemble({})
         # Mock EasyOCR import failure simulation is hard here because it's in __init__
         # But we can test the fallback logic
         

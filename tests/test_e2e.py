@@ -8,6 +8,7 @@ import tempfile
 import shutil
 from pathlib import Path
 from datetime import datetime
+from typing import Dict
 from unittest.mock import patch
 from PIL import Image, ImageDraw, ImageFont
 
@@ -34,18 +35,18 @@ class TestEndToEnd(unittest.TestCase):
         print(f"Test-Verzeichnis: {cls.test_dir}")
         
         # Erstelle Test-Config
-        cls.create_test_config()
+        cls.config = cls.create_test_config() # Die Konfiguration wird jetzt zurückgegeben
         
         # Initialisiere Komponenten
         # Force CPU for tests to avoid CUDA errors
         import os
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
         
-        cls.processor = DocumentProcessor('tests/test_config.yaml')
-        cls.categorizer = DocumentCategorizer('tests/test_config.yaml') 
-        cls.storage = StorageManager('tests/test_config.yaml')
-        cls.extractor = DataExtractor('tests/test_config.yaml')
-        cls.db = Database('tests/test_config.yaml')
+        cls.processor = DocumentProcessor(cls.config)
+        cls.categorizer = DocumentCategorizer(cls.config) 
+        cls.storage = StorageManager(cls.config)
+        cls.extractor = DataExtractor(cls.config)
+        cls.db = Database(cls.config)
     
     @classmethod
     def tearDownClass(cls):
@@ -71,12 +72,12 @@ class TestEndToEnd(unittest.TestCase):
                         shutil.rmtree(cls.test_dir, ignore_errors=True)
     
     @classmethod
-    def create_test_config(cls):
-        """Erstellt Test-Konfiguration"""
+    def create_test_config(cls) -> Dict: # Gibt die Konfiguration zurück
+        """Erstellt Test-Konfiguration und gibt sie zurück"""
         # Sanitize path for YAML (replace backslashes with forward slashes)
         test_dir_str = str(cls.test_dir).replace('\\', '/')
         
-        config = f"""
+        config_content = f"""
 system:
   storage:
     base_path: "{test_dir_str}/storage"
@@ -147,7 +148,10 @@ data_extraction:
         config_path = Path('tests/test_config.yaml')
         config_path.parent.mkdir(exist_ok=True)
         with open(config_path, 'w', encoding='utf-8') as f:
-            f.write(config)
+            f.write(config_content)
+        
+        return yaml.safe_load(config_content) # Gibt das geladene Konfigurations-Dictionary zurück
+
     
     def create_test_image(self, filename: str, text: str) -> Path:
         """Erstellt Test-Bild mit Text"""
@@ -300,10 +304,11 @@ data_extraction:
         print("\n--- Test: API Authentifizierung ---")
         
         # Importiere App hier, um Zirkelbezüge zu vermeiden
-        from app.server import app, init_app
+        from app.server import create_app, init_app
         
         # Init App mit Test-Config
-        init_app('tests/test_config.yaml')
+        app = create_app()
+        init_app(app, 'tests/test_config.yaml') # Globale Komponenten initialisieren
         app.config['TESTING'] = True
         client = app.test_client()
         

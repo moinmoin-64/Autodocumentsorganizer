@@ -236,18 +236,39 @@ async def update_document(doc_id: int) -> Tuple[Dict[str, Any], int]:
             db.close()
             return APIResponse.not_found("Document", doc_id)
         
-        # Update document logic (assuming db has update method, or we implement it)
-        # For now, we just log it as the original code did not implement update fully
-        # In a real implementation: db.update_document(doc_id, update_data.model_dump(exclude_unset=True))
-        
-        db.close()
-        
-        # Return updated document (mocked for now as we didn't change DB)
-        # In real world, fetch again
-        return APIResponse.success(
-            data=document,
-            message="Document updated successfully"
-        )
+        # Update document in database
+        try:
+            # Prepare update data - only include fields that were provided
+            update_data = {}
+            if hasattr(data, 'filename') and data.filename:
+                update_data['filename'] = data.filename
+            if hasattr(data, 'category') and data.category:
+                update_data['category'] = data.category
+            if hasattr(data, 'date_document') and data.date_document:
+                update_data['date_document'] = data.date_document
+            if hasattr(data, 'summary') and data.summary:
+                update_data['summary'] = data.summary
+            
+            # Update in database
+            success = db.update_document(doc_id, update_data)
+            
+            if not success:
+                logger.warning(f"Update failed for document {doc_id}")
+                db.close()
+                return APIResponse.server_error("Update failed")
+            
+            # Fetch updated document
+            updated_doc = db.get_document(doc_id)
+            db.close()
+            
+            return APIResponse.success(
+                data=updated_doc,
+                message="Document updated successfully"
+            )
+        except KeyError as e:
+            logger.error(f"Missing required field: {e}")
+            db.close()
+            return APIResponse.validation_error({str(e): ["This field is required"]})
         
     except Exception as e:
         logger.error(f"Error updating document {doc_id}: {e}")

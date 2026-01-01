@@ -154,7 +154,8 @@ async def list_photos() -> Tuple[Dict[str, Any], int]:
                             photo_month = int(parts[1])
                             photo_day = int(parts[2])
                             photo_date = datetime(photo_year, photo_month, photo_day)
-                        except:
+                        except (ValueError, IndexError) as e:
+                            logger.warning(f"Could not parse date from path {relative_path}: {e}")
                             photo_date = datetime.fromtimestamp(photo_path.stat().st_mtime)
                     else:
                         photo_date = datetime.fromtimestamp(photo_path.stat().st_mtime)

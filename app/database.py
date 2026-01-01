@@ -16,18 +16,9 @@ logger = logging.getLogger(__name__)
 class Database:
     """SQLAlchemy Database Manager"""
 
-    def __init__(self, config_path: str = 'config.yaml'):
+    def __init__(self, config: Dict): # config_path durch config ersetzt
         """Initialisiert Datenbank"""
-        # Config laden (für Kompatibilität)
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                self.config = yaml.safe_load(f)
-        except (FileNotFoundError, yaml.YAMLError) as e:
-            logger.warning(f"Config konnte nicht geladen werden: {e}. Nutze Defaults.")
-            self.config = {}
-        except Exception as e:
-            logger.error(f"Unerwarteter Fehler beim Laden der Config: {e}")
-            self.config = {}
+        self.config = config
         
         # Sicherstellen, dass Tabellen existieren
         Base.metadata.create_all(bind=engine)
@@ -131,8 +122,8 @@ class Database:
                     if isinstance(data['date_document'], str):
                         try:
                             doc.date_document = datetime.fromisoformat(data['date_document'])
-                        except:
-                            pass
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"Could not parse date '{data['date_document']}': {e}")
                     else:
                         doc.date_document = data['date_document']
                 if 'summary' in data:
@@ -231,19 +222,26 @@ class Database:
                 if max_amount is not None:
                     q = q.filter(Document.amount <= max_amount)
 
+                # OPTIMIZED: Avoid N+1 by using joinedload for tags
                 if tags:
                     for tag_name in tags:
                         q = q.filter(Document.tags.any(Tag.name == tag_name))
 
-                q = q.order_by(desc(Document.date_document)).limit(limit)
+                # Use joinedload to prevent N+1 queries when accessing relationships
+                from sqlalchemy.orm import joinedload
+                q = q.options(
+                    joinedload(Document.tags),
+                    joinedload(Document.extracted_data)
+                ).order_by(desc(Document.date_document)).limit(limit)
 
                 results = []
                 for doc in q.all():
                     results.append(self._doc_to_dict(doc))
                 
+                logger.debug(f"Advanced search returned {len(results)} documents")
                 return results
         except Exception as e:
-            logger.error(f"Fehler bei erweiterter Suche: {e}")
+            logger.error(f"Fehler bei erweiterter Suche: {e}", exc_info=True)
             return []
 
     def count_documents(

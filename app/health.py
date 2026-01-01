@@ -2,7 +2,7 @@
 Health Check - System Status Monitoring
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, current_app
 from datetime import datetime
 import logging
 import os
@@ -59,13 +59,24 @@ def check_disk_space():
     """Prüft verfügbaren Speicherplatz"""
     try:
         import psutil
+        from flask import current_app
         
-        # Check /mnt/documents
+        # Check configured storage path first
+        base_path = current_app.config.get('STORAGE_BASE_PATH', '/')
+        check_paths = [base_path]
+        
+        # Add alternative paths if configured
         if os.path.exists('/mnt/documents'):
-            usage = psutil.disk_usage('/mnt/documents')
-        else:
-            usage = psutil.disk_usage('/')
+            check_paths.insert(0, '/mnt/documents')
         
+        # Use first existing path
+        check_path = '/'
+        for path in check_paths:
+            if os.path.exists(path):
+                check_path = path
+                break
+        
+        usage = psutil.disk_usage(check_path)
         percent_used = usage.percent
         free_gb = usage.free / (1024**3)
         

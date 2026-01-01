@@ -5,6 +5,8 @@ import pytest
 import sys
 from pathlib import Path
 import prometheus_client
+import tempfile # Hinzugefügt
+import os # Hinzugefügt
 
 # --- Prometheus Patch for duplicate metrics in tests ---
 # This is a workaround for a common issue when using prometheus-client in a test
@@ -30,26 +32,20 @@ from pathlib import Path
 # Add app to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.server import app as flask_app
-from app.database import Database
-from app.db_config import engine
-from app.models import Base
-
+from app.server import create_app, init_app # init_app importieren
 
 @pytest.fixture(scope='session')
 def app():
     """Create application for testing"""
-    flask_app.config['TESTING'] = True
-    flask_app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for tests
-    flask_app.config['DATABASE_PATH'] = ':memory:'  # In-memory DB for tests
+    # Use actual test config file
+    test_config_path = Path(__file__).parent / 'test_config.yaml'
     
-    # Create tables
-    Base.metadata.create_all(bind=engine)
+    _app = create_app() # create_app ohne Argumente aufrufen
+    init_app(_app, str(test_config_path)) # init_app mit App-Instanz und config_path aufrufen
+    _app.config['TESTING'] = True
+    _app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for tests
     
-    yield flask_app
-    
-    # Cleanup
-    Base.metadata.drop_all(bind=engine)
+    yield _app
 
 
 @pytest.fixture
@@ -73,7 +69,7 @@ def db(app):
             connection.execute(table.delete())
         transaction.commit()
         
-    yield Database()
+    yield Database(app.config) # app.config an Database übergeben
 
 
 @pytest.fixture

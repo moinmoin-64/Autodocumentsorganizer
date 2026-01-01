@@ -23,6 +23,30 @@ except ImportError:
 
 
 class OCREnsemble:
+    def __init__(self, config: Dict):
+        self.config = config
+        self.ocr_config = config.get('ocr', {})
+        self.tesseract_lang = '+'.join(self.ocr_config.get('languages', ['eng'])) # Use 'languages' from config
+        
+        self.use_easyocr = False
+        self.reader = None
+        
+        # Check if EasyOCR is enabled and try to load
+        if self.ocr_config.get('easyocr_enabled', False):
+            try:
+                import easyocr
+                # Ensure easyocr_languages is a list of strings
+                easyocr_languages = self.ocr_config.get('easyocr_languages', ['en'])
+                if isinstance(easyocr_languages, str):
+                    easyocr_languages = [easyocr_languages] # Convert to list if single string
+                
+                self.reader = easyocr.Reader(easyocr_languages)
+                self.use_easyocr = True
+                logger.info("✅ EasyOCR enabled and loaded.")
+            except ImportError:
+                logger.warning("⚠️ EasyOCR not installed, or failed to load. Falling back to Tesseract only.")
+            except Exception as e:
+                logger.error(f"Error loading EasyOCR: {e}. Falling back to Tesseract only.")
 
     def extract_text(self, image_path: str) -> str:
         """
@@ -91,14 +115,14 @@ class OCREnsemble:
         """Legacy method - calls new confidence version"""
         return self._run_tesseract_with_confidence(image_path)['text']
 
-    def _run_tesseract_with_confidence(self, image_path: str) -> Dict[str, any]:
+    def _run_tesseract_with_confidence(self, image_path: str) -> Dict[str, Any]:
         """Run Tesseract with confidence scores"""
         try:
             img = Image.open(image_path)
             # Get text and data (includes confidence)
             data = pytesseract.image_to_data(
                 img,
-                lang='deu+eng',
+                lang=self.tesseract_lang, # Use configured languages
                 config='--oem 3 --psm 3',
                 output_type=pytesseract.Output.DICT
             )
@@ -110,7 +134,7 @@ class OCREnsemble:
             # Get plain text
             text = pytesseract.image_to_string(
                 img,
-                lang='deu+eng',
+                lang=self.tesseract_lang, # Use configured languages
                 config='--oem 3 --psm 3'
             )
             
@@ -126,7 +150,7 @@ class OCREnsemble:
         """Legacy method - calls new confidence version"""
         return self._run_easyocr_with_confidence(image_path)['text']
 
-    def _run_easyocr_with_confidence(self, image_path: str) -> Dict[str, any]:
+    def _run_easyocr_with_confidence(self, image_path: str) -> Dict[str, Any]:
         """Run EasyOCR with confidence scores"""
         if not self.reader:
             return {'text': '', 'confidence': 0}

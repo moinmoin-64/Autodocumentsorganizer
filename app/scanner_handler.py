@@ -103,7 +103,8 @@ class ScannerHandler:
                 # Versuche ADF (Automatic Document Feeder)
                 try:
                     self.scanner.source = 'ADF'
-                except:
+                except (AttributeError, Exception) as e:
+                    logger.info(f"ADF not available, using Flatbed: {e}")
                     self.scanner.source = 'Flatbed'
             
             logger.info(f"Scanner konfiguriert: {self.scanner_config['resolution']}dpi, {self.scanner_config['color_mode']}")

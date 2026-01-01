@@ -5,10 +5,11 @@ Ermöglicht Upload über Web-Interface
 
 import logging
 import os
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from werkzeug.utils import secure_filename
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -49,8 +50,11 @@ def upload_file():
         # Sichere Dateinamen
         filename = secure_filename(file.filename)
         
-        # Temp-Verzeichnis
-        temp_dir = Path('/tmp/scans')
+        # Temp-Verzeichnis (from config or fallback to platform-specific temp)
+        try:
+            temp_dir = Path(current_app.config.get('TEMP_UPLOAD_DIR', tempfile.gettempdir())) / 'scans'
+        except:
+            temp_dir = Path(tempfile.gettempdir()) / 'scans'
         temp_dir.mkdir(parents=True, exist_ok=True)
         
         # Speichere temporär
@@ -209,8 +213,10 @@ def process_file_logic(filepath: str) -> dict:
         try:
             from app.metrics import DOCUMENT_PROCESSED_TOTAL
             DOCUMENT_PROCESSED_TOTAL.labels(status='success', category=main_category).inc()
-        except:
-            pass
+        except ImportError:
+            logger.debug("Metrics not available")
+        except Exception as e:
+            logger.warning(f"Metrics update failed: {e}")
         
         # 7. CSV-Extraktion
         year = document_date.year if document_date else datetime.now().year

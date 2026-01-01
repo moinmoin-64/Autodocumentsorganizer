@@ -10,7 +10,7 @@ import os
 from email.header import decode_header
 from email.message import Message
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 import yaml
 from datetime import datetime
 
@@ -25,24 +25,18 @@ class EmailReceiver:
     und extrahiert PDF- und Bild-Anhänge für die weitere Verarbeitung.
     """
     
-    def __init__(self, config_path: str = 'config.yaml'):
+    def __init__(self, config: Dict): # config_path durch config ersetzt
         """
         Initialisiert Email Receiver
         
         Args:
-            config_path: Pfad zur YAML-Konfigurationsdatei
+            config: Konfigurationsdictionary
         """
-        self.config_path = config_path
-        self._load_config()
+        self.config = config
+        self.email_config = self.config.get('email', {})
+        self.upload_folder = self.config['system']['storage']['upload_folder']
         self.connection: Optional[imaplib.IMAP4_SSL] = None
         
-    def _load_config(self) -> None:
-        """Lädt Konfiguration aus YAML-Datei"""
-        with open(self.config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-            self.email_config = config.get('email', {})
-            self.upload_folder = config['system']['storage']['upload_folder']
-            
     def connect(self) -> bool:
         """
         Verbindet zum IMAP Server

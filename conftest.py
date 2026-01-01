@@ -63,7 +63,7 @@ def test_config(temp_dir):
             'poll_interval': 300
         },
         'ocr': {
-            'language': 'deu+eng',
+            'languages': ['deu', 'eng'],
             'dpi': 300
         }
     }

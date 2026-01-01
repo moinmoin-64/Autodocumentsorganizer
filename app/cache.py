@@ -8,6 +8,7 @@ import pickle
 from typing import Any, Optional, Union
 from functools import wraps
 import hashlib
+import redis
 
 logger = logging.getLogger(__name__)
 

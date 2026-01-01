@@ -37,15 +37,14 @@ logger = logging.getLogger(__name__)
 class DocumentProcessor:
     """Verarbeitet gescannte Dokumente mit OCR und Text-Extraktion"""
     
-    def __init__(self, config_path: str = 'config.yaml'):
+    def __init__(self, config: Dict): # config_path durch config ersetzt
         """
         Initialisiert Document Processor
         
         Args:
-            config_path: Pfad zur Konfigurationsdatei
+            config: Konfigurationsdictionary
         """
-        with open(config_path, 'r', encoding='utf-8') as f:
-            self.config = yaml.safe_load(f)
+        self.config = config
         
         self.ocr_config = self.config['ocr']
         
@@ -276,7 +275,7 @@ class DocumentProcessor:
                 # OCR Ensemble nutzen
                 OCR_REQUESTS_TOTAL.labels(engine='ensemble', language=self.tesseract_lang).inc()
                 
-                with OCR_DURATION_SECONDS.observe():
+                with OCR_DURATION_SECONDS.time():
                     # Initialisiere Ensemble (Lazy Loading)
                     if not hasattr(self, 'ocr_ensemble'):
                         from app.ocr_ensemble import OCREnsemble

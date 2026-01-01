@@ -297,7 +297,7 @@ async function loadRecentDocuments(reset = false) {
     try {
         const data = await api.documents.list({
             page: currentPage,
-            limit: DOCUMENTS_PER_PAGE
+            page_size: DOCUMENTS_PER_PAGE
         });
 
         const documents = data.documents || data.data || []; // Handle different response structures
@@ -316,6 +316,11 @@ async function loadRecentDocuments(reset = false) {
             return;
         }
 
+        // OPTIMIZATION: Batch DOM-Updates using DocumentFragment
+        // Instead of appendChild for each document (N DOM operations),
+        // build all HTML at once (1 DOM operation)
+        const fragment = document.createDocumentFragment();
+        
         documents.forEach(doc => {
             const card = document.createElement('div');
             card.className = 'document-card';
@@ -330,8 +335,11 @@ async function loadRecentDocuments(reset = false) {
             `;
 
             card.addEventListener('click', () => downloadDocument(doc.id));
-            container.appendChild(card);
+            fragment.appendChild(card);
         });
+        
+        // Single batch append - much faster for many elements
+        container.appendChild(fragment);
 
         currentPage++;
         isLoadingDocuments = false;
@@ -372,6 +380,7 @@ function setupInfiniteScroll() {
 
 // === Search Function ===
 let searchTimeout = null;
+let lastSearchQuery = '';
 
 function setupSearchFunction() {
     const searchInput = document.getElementById('searchInput');
@@ -379,25 +388,7 @@ function setupSearchFunction() {
 
     if (!searchInput || !searchResults) return;
 
-    searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.trim();
-
-        // Clear previous timeout
-        if (searchTimeout) {
-            clearTimeout(searchTimeout);
-        }
-
-        // Hide if empty
-        if (query.length < 2) {
-            searchResults.classList.add('hidden');
-            return;
-        }
-
-        // Debounce search
-        searchTimeout = setTimeout(() => {
-            performSearch(query);
-        }, 300);
-    });
+    searchInput.addEventListener('input', debounceSearch);
 
     // Close results when clicking outside
     document.addEventListener('click', (e) => {
@@ -405,6 +396,38 @@ function setupSearchFunction() {
             searchResults.classList.add('hidden');
         }
     });
+}
+
+// OPTIMIZATION: Debounce search with better implementation
+// Prevents API spam and improves UX (wait until user stops typing)
+function debounceSearch(e) {
+    const query = e.target.value.trim();
+    
+    // Clear previous timeout
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+
+    // Cache last query to avoid duplicate requests
+    if (query === lastSearchQuery && query.length >= 2) {
+        return;
+    }
+
+    const searchResults = document.getElementById('searchResults');
+
+    // Hide if empty
+    if (query.length < 2) {
+        searchResults.classList.add('hidden');
+        lastSearchQuery = '';
+        return;
+    }
+
+    lastSearchQuery = query;
+
+    // Debounce: wait 300ms after user stops typing
+    searchTimeout = setTimeout(() => {
+        performSearch(query);
+    }, 300);
 }
 
 async function performSearch(query) {
@@ -421,8 +444,9 @@ async function performSearch(query) {
             return;
         }
 
-        searchResults.innerHTML = '';
-
+        // OPTIMIZATION: Batch DOM-Updates für Search Results
+        const fragment = document.createDocumentFragment();
+        
         results.forEach(doc => {
             const item = document.createElement('div');
             item.className = 'search-result-item';
@@ -436,8 +460,12 @@ async function performSearch(query) {
                 searchResults.classList.add('hidden');
             });
 
-            searchResults.appendChild(item);
+            fragment.appendChild(item);
         });
+        
+        // Clear old and append all at once
+        searchResults.innerHTML = '';
+        searchResults.appendChild(fragment);
 
     } catch (error) {
         console.error('Error performing search:', error);
