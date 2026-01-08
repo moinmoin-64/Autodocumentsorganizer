@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 try:
     import ocr_accelerator
     OCR_NATIVE_AVAILABLE = True
-    logger.info("✅ Native C++ OCR accelerator available (50x faster!)")
+    logger.info("[OK] Native C++ OCR accelerator available (50x faster!)")
     _accelerator = ocr_accelerator.OCRAccelerator()
 except ImportError:
     OCR_NATIVE_AVAILABLE = False
     _accelerator = None
-    logger.warning("⚠️ Native C++ OCR accelerator not available, using fallback")
+    logger.warning("[WARNING] Native C++ OCR accelerator not available, using fallback")
 
 
 class OCREnsemble:
@@ -42,9 +42,9 @@ class OCREnsemble:
                 
                 self.reader = easyocr.Reader(easyocr_languages)
                 self.use_easyocr = True
-                logger.info("✅ EasyOCR enabled and loaded.")
+                logger.info("[OK] EasyOCR enabled and loaded.")
             except ImportError:
-                logger.warning("⚠️ EasyOCR not installed, or failed to load. Falling back to Tesseract only.")
+                logger.warning("[WARNING] EasyOCR not installed, or failed to load. Falling back to Tesseract only.")
             except Exception as e:
                 logger.error(f"Error loading EasyOCR: {e}. Falling back to Tesseract only.")
 
@@ -179,3 +179,5 @@ class OCREnsemble:
         except Exception as e:
             logger.error(f"EasyOCR Fehler: {e}")
             return {'text': '', 'confidence': 0}
+
+

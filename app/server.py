@@ -211,7 +211,7 @@ def init_app(app_instance: Flask, config_path: str = 'config.yaml') -> None:
     except Exception as e:
         logger.warning(f"Could not set initial metrics: {e}")
     
-    logger.info("✅ App initialisiert")
+    logger.info("[OK] App initialisiert")
 
 
 def _reindex_search():
@@ -224,7 +224,7 @@ def _reindex_search():
     try:
         documents = db.search_documents(limit=10000)
         search_engine.index_documents(documents)
-        logger.info(f"✅ {len(documents)} Dokumente indexiert")
+        logger.info(f"[OK] {len(documents)} Dokumente indexiert")
     except Exception as e:
         logger.error(f"Fehler beim Indexieren: {e}")
 
@@ -298,3 +298,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     run_server(host=args.host, port=args.port, debug=args.debug)
+
+

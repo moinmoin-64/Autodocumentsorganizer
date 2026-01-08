@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 try:
     import image_fast
     NATIVE_AVAILABLE = True
-    logger.info("✅ Native C image processing available (100x faster!)")
+    logger.info("[OK] Native C image processing available (100x faster!)")
 except ImportError:
     NATIVE_AVAILABLE = False
-    logger.warning("⚠️ Native C extension not available, using fallback (slower)")
+    logger.warning("[WARNING] Native C extension not available, using fallback (slower)")
     import cv2
 
 
@@ -161,4 +161,6 @@ if __name__ == '__main__':
         duration = time.time() - start
         
         print(f"Denoising 1000x1000 image: {duration*1000:.2f}ms")
-        print("✅ Native extension working!")
+        print("[OK] Native extension working!")
+
+

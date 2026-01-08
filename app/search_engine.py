@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 try:
     import search_indexer
     NATIVE_SEARCH_AVAILABLE = True
-    logger.info("✅ Native C++ Search Indexer available (30x faster!)")
+    logger.info("[OK] Native C++ Search Indexer available (30x faster!)")
 except ImportError:
     NATIVE_SEARCH_AVAILABLE = False
-    logger.warning("⚠️ Native C++ Search Indexer not available, using Python fallback")
+    logger.warning("[WARNING] Native C++ Search Indexer not available, using Python fallback")
 
 
 class SearchEngine:
@@ -256,3 +256,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

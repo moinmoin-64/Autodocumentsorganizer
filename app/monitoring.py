@@ -4,40 +4,55 @@ Prometheus Metrics & System Stats
 """
 import time
 import psutil
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST, REGISTRY
 from flask import Response, request
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Metrics Definitions
-HTTP_REQUESTS_TOTAL = Counter(
-    'http_requests_total',
-    'Total HTTP requests',
-    ['method', 'endpoint', 'status']
-)
+# Metrics Definitions - with duplicate check
+try:
+    HTTP_REQUESTS_TOTAL = Counter(
+        'http_requests_total',
+        'Total HTTP requests',
+        ['method', 'endpoint', 'status']
+    )
+except ValueError:
+    HTTP_REQUESTS_TOTAL = REGISTRY._names_to_collectors.get('http_requests_total')
 
-HTTP_REQUEST_DURATION_SECONDS = Histogram(
-    'http_request_duration_seconds',
-    'HTTP request duration in seconds',
-    ['method', 'endpoint']
-)
+try:
+    HTTP_REQUEST_DURATION_SECONDS = Histogram(
+        'http_request_duration_seconds',
+        'HTTP request duration in seconds',
+        ['method', 'endpoint']
+    )
+except ValueError:
+    HTTP_REQUEST_DURATION_SECONDS = REGISTRY._names_to_collectors.get('http_request_duration_seconds')
 
-DB_QUERY_DURATION_SECONDS = Histogram(
-    'db_query_duration_seconds',
-    'Database query duration in seconds',
-    ['operation', 'table']
-)
+try:
+    DB_QUERY_DURATION_SECONDS = Histogram(
+        'db_query_duration_seconds',
+        'Database query duration in seconds',
+        ['operation', 'table']
+    )
+except ValueError:
+    DB_QUERY_DURATION_SECONDS = REGISTRY._names_to_collectors.get('db_query_duration_seconds')
 
-SYSTEM_MEMORY_USAGE_BYTES = Gauge(
-    'system_memory_usage_bytes',
-    'System memory usage in bytes'
-)
+try:
+    SYSTEM_MEMORY_USAGE_BYTES = Gauge(
+        'system_memory_usage_bytes',
+        'System memory usage in bytes'
+    )
+except ValueError:
+    SYSTEM_MEMORY_USAGE_BYTES = REGISTRY._names_to_collectors.get('system_memory_usage_bytes')
 
-SYSTEM_CPU_USAGE_PERCENT = Gauge(
-    'system_cpu_usage_percent',
-    'System CPU usage percent'
-)
+try:
+    SYSTEM_CPU_USAGE_PERCENT = Gauge(
+        'system_cpu_usage_percent',
+        'System CPU usage percent'
+    )
+except ValueError:
+    SYSTEM_CPU_USAGE_PERCENT = REGISTRY._names_to_collectors.get('system_cpu_usage_percent')
 
 # Helper to update system metrics
 def update_system_metrics():

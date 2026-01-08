@@ -6,19 +6,18 @@
     "moduleResolution": "bundler",
     "rootDir": ".",
     "outDir": "./app/static/js/dist",
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": false,
     "sourceMap": true,
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "allowJs": true,
+    "allowJs": false,
     "checkJs": false,
     "allowSyntheticDefaultImports": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
@@ -28,13 +27,20 @@
     }
   },
   "include": [
-    "app/static/js/**/*.ts",
-    "types/**/*.ts"
+    "app/static/js/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist",
     ".venv",
-    "**/*.test.ts"
-  ]
+    "types/**",
+    "**/*.test.ts",
+    "tests/**",
+    "build/**",
+    "htmlcov/**"
+  ],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
+  }
 }

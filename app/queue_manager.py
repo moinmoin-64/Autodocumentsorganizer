@@ -125,12 +125,12 @@ class DocumentQueue:
                         logger.error("Kein Processing Callback gesetzt!")
                     
                     job['status'] = 'completed'
-                    logger.info(f"{thread_name}: ✓ Fertig - {job['file_path']}")
+                    logger.info(f"{thread_name}: [OK] Fertig - {job['file_path']}")
                     
                 except Exception as e:
                     job['status'] = 'failed'
                     job['error'] = str(e)
-                    logger.error(f"{thread_name}: ✗ Fehler - {job['file_path']}: {e}")
+                    logger.error(f"{thread_name}: [ERROR] Fehler - {job['file_path']}: {e}")
                 
                 finally:
                     job['completed_at'] = datetime.now()
@@ -206,3 +206,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

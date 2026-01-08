@@ -45,10 +45,10 @@ class RedisClient:
             )
             self.client.ping()
             self.enabled = True
-            logger.info(f"✅ Redis connected at {self.host}:{self.port}")
+            logger.info(f"[OK] Redis connected at {self.host}:{self.port}")
         except redis.ConnectionError:
             self.enabled = False
-            logger.warning(f"⚠️ Redis not available at {self.host}:{self.port}. Caching disabled.")
+            logger.warning(f"[WARNING] Redis not available at {self.host}:{self.port}. Caching disabled.")
         except Exception as e:
             self.enabled = False
             logger.error(f"Redis connection error: {e}")
@@ -115,3 +115,5 @@ class RedisClient:
         except Exception as e:
             logger.error(f"Redis publish error: {e}")
             return False
+
+

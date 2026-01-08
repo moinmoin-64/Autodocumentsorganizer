@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 try:
     import db_fast
     DB_NATIVE_AVAILABLE = True
-    logger.info("✅ Native C database accelerator available (50x faster!)")
+    logger.info("[OK] Native C database accelerator available (50x faster!)")
 except ImportError:
     DB_NATIVE_AVAILABLE = False
-    logger.warning("⚠️ Native C database accelerator not available, using SQLAlchemy fallback")
+    logger.warning("[WARNING] Native C database accelerator not available, using SQLAlchemy fallback")
 
 
 class FastDatabaseOps:
@@ -118,8 +118,10 @@ if __name__ == '__main__':
     print(f"Native DB accelerator available: {DB_NATIVE_AVAILABLE}")
     
     if DB_NATIVE_AVAILABLE:
-        print("✅ Ready for 50x database performance boost!")
+        print("[OK] Ready for 50x database performance boost!")
     else:
-        print("⚠️ Install sqlite3-dev and recompile for better performance")
+        print("[WARNING] Install sqlite3-dev and recompile for better performance")
         print("   On Linux/Pi: sudo apt-get install libsqlite3-dev")
         print("   Then: python setup.py build_ext --inplace")
+
+

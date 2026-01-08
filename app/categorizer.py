@@ -38,7 +38,7 @@ class DocumentCategorizer:
             
             try:
                 self.model = SentenceTransformer(model_name, device='cpu')
-                logger.info("✓ AI-Model geladen")
+                logger.info("[OK] AI-Model geladen")
             except Exception as e:
                 logger.error(f"❌ Fehler beim Laden des Models: {e}")
                 logger.warning("→ Fallback auf reine Keyword-Regeln")
@@ -688,3 +688,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

@@ -8,17 +8,18 @@ import time
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 import yaml
 
+# SANE Module - optional, aber funktional auf Linux
 try:
     import sane
+    SANE_AVAILABLE = True
 except ImportError:
-    sane = None
-    # Configure logging if not already configured (basic fallback)
-    if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO)
-    logging.warning("SANE module not found. Scanner functionality will be disabled.")
+    SANE_AVAILABLE = False
+    # Nur einmal warnen
+    logger = logging.getLogger(__name__)
+    logger.warning("SANE module not available. Scanner will run in mock/web-interface mode. Install with: pip install sane-ai")
 
 logger = logging.getLogger(__name__)
 
@@ -50,19 +51,19 @@ class ScannerHandler:
         Returns:
             True wenn Scanner gefunden, sonst False
         """
-        try:
-            if sane is None:
-                logger.warning("SANE nicht verfügbar (Windows?). Nutze Mock-Modus oder deaktiviere Scanner.")
-                return False
+        if not SANE_AVAILABLE:
+            logger.warning("SANE not available. Use web interface to upload scans or install on Linux.")
+            return False
 
+        try:
             sane.init()
             devices = sane.get_devices()
             
             if not devices:
-                logger.error("Kein Scanner gefunden!")
+                logger.error("No scanner devices found!")
                 return False
             
-            # Finde HP Scanner
+            # Find HP Scanner
             hp_device = None
             for device in devices:
                 device_name = device[0].lower()
@@ -71,19 +72,19 @@ class ScannerHandler:
                     break
             
             if hp_device:
-                logger.info(f"HP Scanner gefunden: {hp_device}")
+                logger.info(f"HP Scanner found: {hp_device}")
                 self.scanner = sane.open(hp_device[0])
                 self._configure_scanner()
                 return True
             else:
-                # Fallback: erster verfügbarer Scanner
-                logger.warning("Kein HP Scanner gefunden, nutze erstes Gerät")
+                # Fallback: use first available device
+                logger.warning(f"No HP Scanner found. Using first available device: {devices[0][1]}")
                 self.scanner = sane.open(devices[0][0])
                 self._configure_scanner()
                 return True
                 
         except Exception as e:
-            logger.error(f"Fehler bei Scanner-Initialisierung: {e}")
+            logger.error(f"Scanner initialization error: {e}")
             return False
     
     def _configure_scanner(self):
@@ -98,29 +99,31 @@ class ScannerHandler:
                 mode = self.scanner_config['color_mode']
                 self.scanner.mode = mode
             
-            # Format (ADF wenn verfügbar)
+            # Source (ADF wenn verfügbar)
             if hasattr(self.scanner, 'source'):
-                # Versuche ADF (Automatic Document Feeder)
                 try:
+                    # Try ADF (Automatic Document Feeder)
                     self.scanner.source = 'ADF'
-                except (AttributeError, Exception) as e:
-                    logger.info(f"ADF not available, using Flatbed: {e}")
+                    logger.info("ADF enabled")
+                except (AttributeError, Exception):
+                    # Fallback to Flatbed
                     self.scanner.source = 'Flatbed'
+                    logger.info("Using Flatbed scanner")
             
-            logger.info(f"Scanner konfiguriert: {self.scanner_config['resolution']}dpi, {self.scanner_config['color_mode']}")
+            logger.info(f"Scanner configured: {self.scanner_config['resolution']}dpi, {self.scanner_config['color_mode']}")
             
         except Exception as e:
-            logger.warning(f"Scanner-Konfiguration teilweise fehlgeschlagen: {e}")
+            logger.warning(f"Scanner configuration partially failed: {e}")
     
     def scan_document(self) -> Optional[str]:
         """
-        Scannt ein einzelnes Dokument
+        Scans a single document
         
         Returns:
-            Pfad zum gescannten Dokument oder None bei Fehler
+            Path to scanned document or None on error
         """
         if not self.scanner:
-            logger.error("Scanner nicht initialisiert!")
+            logger.error("Scanner not initialized!")
             return None
         
         try:
@@ -128,34 +131,34 @@ class ScannerHandler:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_path = self.temp_path / f"scan_{timestamp}.jpg"
             
-            logger.info(f"Starte Scan...")
+            logger.info("Starting scan...")
             
-            # Scan durchführen
+            # Perform scan
             self.scanner.start()
             image = self.scanner.snap()
             
-            # Als Bild speichern
+            # Save as image
             image.save(str(output_path))
             
-            logger.info(f"Scan erfolgreich: {output_path}")
+            logger.info(f"Scan successful: {output_path}")
             self.scanning = False
             
             return str(output_path)
             
         except Exception as e:
-            logger.error(f"Scan-Fehler: {e}")
+            logger.error(f"Scan error: {e}")
             self.scanning = False
             return None
     
-    def scan_multi_page(self) -> list[str]:
+    def scan_multi_page(self) -> List[str]:
         """
-        Scannt mehrere Seiten (ADF)
+        Scans multiple pages (ADF)
         
         Returns:
-            Liste von Pfaden zu gescannten Seiten
+            List of paths to scanned pages
         """
         if not self.scanner:
-            logger.error("Scanner nicht initialisiert!")
+            logger.error("Scanner not initialized!")
             return []
         
         scanned_pages = []
@@ -167,7 +170,7 @@ class ScannerHandler:
             
             while True:
                 try:
-                    logger.info(f"Scanne Seite {page_num}...")
+                    logger.info(f"Scanning page {page_num}...")
                     
                     if page_num == 1:
                         self.scanner.start()
@@ -178,76 +181,82 @@ class ScannerHandler:
                     image.save(str(output_path))
                     
                     scanned_pages.append(str(output_path))
-                    logger.info(f"Seite {page_num} gespeichert: {output_path}")
+                    logger.info(f"Page {page_num} saved: {output_path}")
                     
                     page_num += 1
                     
                 except StopIteration:
-                    # Keine weiteren Seiten im ADF
-                    logger.info(f"Multi-Page-Scan abgeschlossen: {len(scanned_pages)} Seiten")
+                    # No more pages in ADF
+                    logger.info(f"Multi-page scan completed: {len(scanned_pages)} pages")
                     break
                     
                 except Exception as e:
-                    logger.warning(f"Fehler bei Seite {page_num}: {e}")
+                    logger.warning(f"Error on page {page_num}: {e}")
                     break
             
             self.scanning = False
             return scanned_pages
             
         except Exception as e:
-            logger.error(f"Multi-Page-Scan-Fehler: {e}")
+            logger.error(f"Multi-page scan error: {e}")
             self.scanning = False
             return scanned_pages
     
     def watch_scanner_button(self, callback):
         """
-        Überwacht Scanner-Button (Scan-Taste am Gerät)
-        HINWEIS: Nicht alle Scanner unterstützen Button-Events
+        Monitors scanner button (scan button on device)
+        Note: Not all scanners support button events
         
         Args:
-            callback: Funktion, die aufgerufen wird wenn Scan-Button gedrückt wird
+            callback: Function called when scan button is pressed
+            
+        Note:
+            For HP scanners: Use hp-toolbox or web interface
+            Alternative: Monitor directory for new files
         """
-        logger.info("Scanner-Button-Überwachung gestartet")
-        logger.warning("Button-Erkennung ist hardware-abhängig. Fallback: nutze Web-Interface")
+        logger.info("Scanner button monitoring requires device driver support")
+        logger.info("Use web upload interface as primary method")
         
-        # Für HP Scanner: verwende hp-toolbox oder Web-Interface
-        # Alternativ: Überwache Verzeichnis für neue Dateien
+        # For production: consider SANE button events or hp-toolbox integration
+        # See: https://linux.die.net/man/5/sane
     
     def cleanup(self):
-        """Schließt Scanner-Verbindung"""
+        """Closes scanner connection"""
         try:
-            if self.scanner:
+            if self.scanner and SANE_AVAILABLE:
                 self.scanner.close()
-            sane.exit()
-            logger.info("Scanner-Verbindung geschlossen")
+                sane.exit()
+            logger.info("Scanner connection closed")
         except Exception as e:
-            logger.error(f"Fehler beim Schließen: {e}")
+            logger.error(f"Error closing scanner: {e}")
 
 
 def main():
-    """Test-Funktion"""
+    """Test function"""
     logging.basicConfig(level=logging.INFO)
     
     handler = ScannerHandler()
     
     if handler.initialize_scanner():
-        print("Scanner bereit. Drücke Enter zum Scannen...")
+        print("Scanner ready. Press Enter to scan...")
         input()
         
-        # Versuche Multi-Page
+        # Try multi-page scan
         pages = handler.scan_multi_page()
         
         if not pages:
-            # Fallback: Single-Page
+            # Fallback: single-page
             page = handler.scan_document()
             if page:
                 pages = [page]
         
-        print(f"Gescannt: {pages}")
+        print(f"Scanned: {pages}")
         
         handler.cleanup()
     else:
-        print("Scanner-Initialisierung fehlgeschlagen")
+        print("Scanner initialization failed or SANE not available")
+        print("On Windows: Use web interface to upload scans")
+        print("On Linux: Install SANE with: sudo apt-get install sane sane-utils")
 
 
 if __name__ == "__main__":

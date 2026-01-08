@@ -379,7 +379,7 @@ class DocumentProcessor:
         if dates:
             logger.debug(f"Gefundene Daten: {[d.strftime('%Y-%m-%d') for d in dates]}")
         else:
-            logger.warning("⚠️  Kein Datum im Dokument erkannt!")
+            logger.warning("[WARNING]  Kein Datum im Dokument erkannt!")
         
         return dates
     
@@ -511,3 +511,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

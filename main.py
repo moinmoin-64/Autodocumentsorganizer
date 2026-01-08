@@ -38,6 +38,7 @@ with open('config.yaml', 'r', encoding='utf-8') as f:
     config = yaml.safe_load(f)
 
 # Globale Komponenten
+global_config = config
 scanner_handler = None
 document_processor = None
 categorizer = None
@@ -58,7 +59,7 @@ def init_components():
     scanner_handler = ScannerHandler()
     
     # Document Processing
-    document_processor = DocumentProcessor()
+    document_processor = DocumentProcessor(config)
     categorizer = DocumentCategorizer()
     storage_manager = StorageManager()
     data_extractor = DataExtractor()

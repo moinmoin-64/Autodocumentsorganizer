@@ -46,7 +46,7 @@ def init_auth(app, config: Dict): # config_path durch config: Dict ersetzt
     # Secret Key aus ENV oder Config
     secret_key = os.getenv('SECRET_KEY') or config.get('web', {}).get('secret_key', 'dev-key-change-me-in-production')
     if secret_key == 'dev-key-change-me-in-production': # Prüfe auf Standardwert
-        logger.warning("⚠️  WARNUNG: Standard Secret Key wird verwendet! Setze SECRET_KEY als Umgebungsvariable!")
+        logger.warning("[WARNING]  WARNUNG: Standard Secret Key wird verwendet! Setze SECRET_KEY als Umgebungsvariable!")
     app.secret_key = secret_key
     
     # Lade User-Daten (unterstützt sowohl Klartext als auch gehashte Passwörter)
@@ -69,7 +69,7 @@ def _check_password(stored_password: str, provided_password: str) -> bool:
         return check_password_hash(stored_password, provided_password)
     else:
         # Legacy: Klartext-Vergleich
-        logger.warning("⚠️  Legacy Klartext-Passwort verwendet! Bitte zu gehashten Passwörtern migrieren!")
+        logger.warning("[WARNING]  Legacy Klartext-Passwort verwendet! Bitte zu gehashten Passwörtern migrieren!")
         return stored_password == provided_password
 
 @auth_bp.route('/login', methods=['POST'])
@@ -90,7 +90,7 @@ def login():
         if _check_password(stored_password, password):
             user = User(username)
             login_user(user)
-            logger.info(f"✅ Login erfolgreich: {username}")
+            logger.info(f"[OK] Login erfolgreich: {username}")
             return jsonify({'success': True, 'message': 'Login erfolgreich'})
     
     logger.warning(f"Login fehlgeschlagen: {username}")
@@ -109,3 +109,5 @@ def status():
     if current_user.is_authenticated:
         return jsonify({'authenticated': True, 'user': current_user.id})
     return jsonify({'authenticated': False}), 401
+
+
