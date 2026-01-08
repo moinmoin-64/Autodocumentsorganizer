@@ -5,13 +5,20 @@ Tests für komplette Fehlererfassung und Monitoring Workflow
 
 import pytest
 import time
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
+
+# Optional Selenium import with fallback
+try:
+    from selenium import webdriver
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
+    SELENIUM_AVAILABLE = True
+except ImportError:
+    SELENIUM_AVAILABLE = False
 
 
+@pytest.mark.skipif(not SELENIUM_AVAILABLE, reason="Selenium not installed")
 class TestErrorTrackingE2E:
     """End-to-End Tests für Error Tracking"""
 

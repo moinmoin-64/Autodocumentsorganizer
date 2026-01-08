@@ -85,10 +85,10 @@ class SecurityConfig:
 class EmailConfig:
     """Email Configuration"""
     
-    imap_server: str
-    imap_port: int = 993
     email_address: str
     email_password: str
+    imap_server: str = "imap.gmail.com"
+    imap_port: int = 993
     enable_ssl: bool = True
     enable_tls: bool = True
     

@@ -202,3 +202,6 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "integration: Integration tests")
     config.addinivalue_line("markers", "e2e: End-to-end tests")
     config.addinivalue_line("markers", "slow: Slow running tests")
+    config.addinivalue_line("markers", "performance: Performance tests")
+    config.addinivalue_line("markers", "security: Security tests")
+    config.addinivalue_line("markers", "load: Load tests")

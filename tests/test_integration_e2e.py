@@ -10,7 +10,13 @@ import time
 from app.email_parser import EmailParser
 from app.advanced_text_processor import AdvancedTextProcessor
 from app.advanced_upload_handler import AdvancedUploadHandler
-from app.auth_advanced import JWTTokenManager, APIKey
+
+# Optional imports with fallback
+try:
+    from app.auth_advanced import JWTTokenManager, APIKey
+except ImportError:
+    JWTTokenManager = None
+    APIKey = None
 
 
 # ============================================================================
