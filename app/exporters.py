@@ -155,7 +155,7 @@ class DataExporter:
                     fieldnames.append(field)
             
             # Schreibe CSV
-            text_wrapper = io.TextIOWrapper(output, encoding='utf-8', newline='')
+            text_wrapper = io.TextIOWrapper(output, encoding='utf-8', newline='', write_through=True)
             writer = csv.DictWriter(text_wrapper, fieldnames=fieldnames)
             
             writer.writeheader()
@@ -169,7 +169,9 @@ class DataExporter:
                     row[key] = value
                 writer.writerow(row)
             
+            # Flush und detach TextIOWrapper (wichtig!)
             text_wrapper.flush()
+            text_wrapper.detach()
             output.seek(0)
             
             logger.info(f"✅ CSV Export erfolgreich: {len(data)} Zeilen")
