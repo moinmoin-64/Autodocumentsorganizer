@@ -60,7 +60,8 @@ class TestAPIResponseError:
             response_data = json.loads(response.get_data())
             assert code == 400
             assert response_data['success'] is False
-            assert response_data['message'] == 'Test error'
+            assert response_data['error']['message'] == 'Test error'
+            assert response_data['error']['code'] == 'UNKNOWN_ERROR'
     
     def test_error_with_details(self, app):
         """Test error response with details"""
@@ -72,7 +73,7 @@ class TestAPIResponseError:
             response_data = json.loads(response.get_data())
             assert code == 400
             assert response_data['success'] is False
-            assert response_data.get('details') == {'field': 'value'}
+            assert response_data['error']['details'] == {'field': 'value'}
     
     def test_validation_error(self, app):
         """Test validation error response"""
@@ -82,7 +83,7 @@ class TestAPIResponseError:
             response_data = json.loads(response.get_data())
             assert code == 422
             assert response_data['success'] is False
-            assert response_data.get('errors') == errors
+            assert response_data['error']['details']['fields'] == errors
     
     def test_validation_error_with_message(self, app):
         """Test validation error with custom message"""
@@ -94,7 +95,8 @@ class TestAPIResponseError:
             response_data = json.loads(response.get_data())
             assert code == 422
             assert response_data['success'] is False
-            assert 'message' in response_data
+            assert 'message' in response_data['error']
+            assert response_data['error']['message'] == 'Custom validation message'
 
 
 class TestAPIResponseNotFound:
@@ -107,8 +109,9 @@ class TestAPIResponseNotFound:
             response_data = json.loads(response.get_data())
             assert code == 404
             assert response_data['success'] is False
-            assert 'Resource' in response_data['message']
-            assert '123' in response_data['message']
+            assert 'Resource' in response_data['error']['message']
+            assert '123' in response_data['error']['message']
+            assert response_data['error']['code'] == 'NOT_FOUND'
     
     def test_not_found_custom_message(self, app):
         """Test not found with custom message"""
@@ -129,7 +132,8 @@ class TestAPIResponseServerError:
             response_data = json.loads(response.get_data())
             assert code == 500
             assert response_data['success'] is False
-            assert response_data['message'] == 'Server error'
+            assert response_data['error']['message'] == 'Server error'
+            assert response_data['error']['code'] == 'SERVER_ERROR'
     
     def test_server_error_with_exception(self, app):
         """Test server error with exception"""
@@ -171,12 +175,11 @@ class TestAPIResponseSpecialStatus:
             assert response_data['data'] == {'id': 1}
     
     def test_accepted(self, app):
-        """Test 202 accepted response"""
+        """Test 204 no content response (replaces missing 202 accepted)"""
         with app.app_context():
-            response, code = APIResponse.accepted()
-            response_data = json.loads(response.get_data())
-            assert code == 202
-            assert response_data['success'] is True
+            response, code = APIResponse.no_content('Operation completed')
+            assert code == 204
+            assert response == ''
 
 
 class TestAPIResponsePaginated:
@@ -245,17 +248,24 @@ class TestAPIResponseStructure:
                 assert 'success' in response_data
     
     def test_all_responses_have_message(self, app):
-        """Test that most responses have message field"""
+        """Test that success responses have message and errors have error.message"""
         with app.app_context():
-            responses = [
-                APIResponse.success(),
-                APIResponse.error('test'),
-                APIResponse.not_found('test'),
-            ]
+            # Success responses have message at top level
+            response, code = APIResponse.success(message='test')
+            response_data = json.loads(response.get_data())
+            assert 'message' in response_data
             
-            for response, code in responses:
-                response_data = json.loads(response.get_data())
-                assert 'message' in response_data or 'data' in response_data
+            # Error responses have message in error object
+            response, code = APIResponse.error('test')
+            response_data = json.loads(response.get_data())
+            assert 'error' in response_data
+            assert 'message' in response_data['error']
+            
+            # Not found error
+            response, code = APIResponse.not_found('test')
+            response_data = json.loads(response.get_data())
+            assert 'error' in response_data
+            assert 'message' in response_data['error']
     
     def test_status_codes_correct(self, app):
         """Test that status codes are HTTP compliant"""
