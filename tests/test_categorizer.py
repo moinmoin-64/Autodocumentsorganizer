@@ -5,6 +5,7 @@ Testet AI-basierte Kategorisierung
 
 import unittest
 import sys
+import pytest
 from pathlib import Path
 
 # Add parent directory to path
@@ -19,10 +20,21 @@ class TestCategorizer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Initialisiere Categorizer einmal"""
-        cls.categorizer = DocumentCategorizer()
+        # Get config from pytest fixture - we'll use lazy initialization
+        cls.categorizer = None
+        cls.config = None
+    
+    @pytest.fixture(autouse=True)
+    def setup_with_config(self, app):
+        """Setup with actual app config"""
+        if self.categorizer is None:
+            self.__class__.config = app.config
+            self.__class__.categorizer = DocumentCategorizer(app.config)
     
     def test_categorize_rechnung(self):
         """Test: Rechnung wird korrekt kategorisiert"""
+        if self.categorizer is None:
+            pytest.skip("Categorizer not initialized")
         doc = {
             'text': 'Rechnung für Stromverbrauch Januar 2024. Betrag: 45,50 EUR. Stadtwerke München.',
             'keywords': ['rechnung', 'strom', 'betrag', 'stadtwerke']

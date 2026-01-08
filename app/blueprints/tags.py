@@ -24,7 +24,7 @@ async def get_all_tags() -> Tuple[Dict[str, Any], int]:
     try:
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         tags = db.get_all_tags()
         db.close()
         
@@ -57,7 +57,7 @@ async def create_tag() -> Tuple[Dict[str, Any], int]:
 
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         tag_id = db.create_tag(
             name=tag_data.name,
             color=tag_data.color
@@ -85,7 +85,7 @@ async def delete_tag(tag_id: int) -> Tuple[Dict[str, Any], int]:
     try:
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         db.delete_tag(tag_id)
         db.close()
         
@@ -105,7 +105,7 @@ async def get_document_tags(doc_id: int) -> Tuple[Dict[str, Any], int]:
     try:
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         tags = db.get_document_tags(doc_id)
         db.close()
         
@@ -138,7 +138,7 @@ async def add_document_tag(doc_id: int) -> Tuple[Dict[str, Any], int]:
         if not tag_id and not tag_name:
             return jsonify({'error': 'tag_id or tag_name required'}), 400
         
-        db = Database()
+        db = Database(current_app.config)
         
         # If tag_name provided, find or create tag
         if not tag_id and tag_name:
@@ -181,7 +181,7 @@ async def remove_document_tag(doc_id: int, tag_id: int) -> Tuple[Dict[str, Any],
     try:
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         db.remove_tag_from_document(doc_id, tag_id)
         db.close()
         

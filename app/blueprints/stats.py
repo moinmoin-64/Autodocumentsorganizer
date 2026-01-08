@@ -38,7 +38,7 @@ async def get_overview_stats() -> Tuple[Dict[str, Any], int]:
             logger.debug(f"Cache hit for {cache_key}")
             return jsonify({"cached": True, **cached}), 200
         
-        db = Database()
+        db = Database(current_app.config)
         stats_engine = StatisticsEngine()
         
         # These calls are synchronous, blocking the thread.
@@ -83,7 +83,7 @@ async def get_year_stats(year: int) -> Tuple[Dict[str, Any], int]:
         if cached:
             return jsonify(cached), 200
         
-        db = Database()
+        db = Database(current_app.config)
         stats_engine = StatisticsEngine()
         
         stats = {
@@ -218,7 +218,7 @@ async def list_insurances() -> Tuple[Dict[str, Any], int]:
         from app.database import Database
         from app.statistics_engine import StatisticsEngine
         
-        db = Database()
+        db = Database(current_app.config)
         stats_engine = StatisticsEngine(db=db)
         
         insurances = stats_engine.get_insurance_list()

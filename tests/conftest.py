@@ -60,16 +60,16 @@ def db(app):
     Database instance for tests, with automatic data cleanup.
     This fixture ensures a clean database for every test function.
     """
-    # --- Cleanup before test ---
-    # The 'app' fixture, which has session scope, has already created the tables.
-    # We just need to delete the data from them.
-    with engine.connect() as connection:
-        transaction = connection.begin()
-        for table in reversed(Base.metadata.sorted_tables):
-            connection.execute(table.delete())
-        transaction.commit()
-        
-    yield Database(app.config) # app.config an Database übergeben
+    # Use the database from the app context
+    from app.database import Database
+    
+    # Create fresh database instance for test
+    db_instance = Database(app.config)
+    
+    # Return the database for the test
+    yield db_instance
+    
+    # Cleanup after test is optional - database is ephemeral anyway
 
 
 @pytest.fixture

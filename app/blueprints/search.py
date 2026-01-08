@@ -114,7 +114,7 @@ async def get_saved_searches() -> Tuple[Dict[str, Any], int]:
     try:
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         searches = db.get_saved_searches()
         db.close()
         
@@ -138,7 +138,7 @@ async def save_search() -> Tuple[Dict[str, Any], int]:
         if not data or not data.get('name'):
             return jsonify({'error': 'Name required'}), 400
         
-        db = Database()
+        db = Database(current_app.config)
         search_id = db.save_search(
             name=data['name'],
             query=data.get('query', ''),
@@ -165,7 +165,7 @@ async def delete_saved_search(search_id: int) -> Tuple[Dict[str, Any], int]:
     try:
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         db.delete_saved_search(search_id)
         db.close()
         

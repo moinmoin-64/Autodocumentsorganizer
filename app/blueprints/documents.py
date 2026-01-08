@@ -63,7 +63,7 @@ async def list_documents() -> Tuple[Dict[str, Any], int]:
         
         # Database operations (synchronous, but in async route)
         # Ideally, we would run this in an executor if it blocks significantly
-        db = Database()
+        db = Database(current_app.config)
         
         documents = db.search_documents(
             limit=page_size,
@@ -110,7 +110,7 @@ async def get_document(doc_id: int) -> Tuple[Dict[str, Any], int]:
     try:
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         document = db.get_document(doc_id)
         db.close()
         
@@ -142,7 +142,7 @@ async def download_document(doc_id: int):
     try:
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         document = db.get_document(doc_id)
         db.close()
         
@@ -173,7 +173,7 @@ async def delete_document(doc_id: int) -> Tuple[Dict[str, Any], int]:
     try:
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         
         # Get document to delete file
         document = db.get_document(doc_id)
@@ -228,7 +228,7 @@ async def update_document(doc_id: int) -> Tuple[Dict[str, Any], int]:
 
         from app.database import Database
         
-        db = Database()
+        db = Database(current_app.config)
         
         # Check if document exists
         document = db.get_document(doc_id)

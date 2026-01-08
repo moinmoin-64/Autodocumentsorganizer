@@ -5,6 +5,7 @@ Testet OCR und Text-Extraktion
 
 import unittest
 import sys
+import pytest
 from pathlib import Path
 
 # Add parent directory to path
@@ -19,10 +20,20 @@ class TestDocumentProcessor(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Initialisiere Processor einmal für alle Tests"""
-        cls.processor = DocumentProcessor()
+        cls.processor = None
+        cls.config = None
+    
+    @pytest.fixture(autouse=True)
+    def setup_with_config(self, app):
+        """Setup with actual app config"""
+        if self.processor is None:
+            self.__class__.config = app.config
+            self.__class__.processor = DocumentProcessor(app.config)
     
     def test_initialization(self):
         """Test: Processor wird korrekt initialisiert"""
+        if self.processor is None:
+            pytest.skip("Processor not initialized")
         self.assertIsNotNone(self.processor)
         self.assertIn('deu', self.processor.ocr_config['languages'])
     

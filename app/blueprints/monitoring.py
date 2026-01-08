@@ -26,7 +26,7 @@ def health_check() -> tuple[Dict[str, Any], int]:
     # Check Database
     try:
         from app.database import Database
-        db = Database()
+        db = Database(current_app.config)
         # Simple query to check connection
         db.get_overview_stats()
         db.close()

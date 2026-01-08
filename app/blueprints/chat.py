@@ -44,7 +44,7 @@ async def chat() -> Tuple[Dict[str, Any], int]:
             # Run search in thread to avoid blocking event loop
             try:
                 def get_context():
-                    db = Database()
+                    db = Database(current_app.config)
                     search_engine = SearchEngine()
                     results = search_engine.semantic_search(message, limit=3)
                     db.close()
