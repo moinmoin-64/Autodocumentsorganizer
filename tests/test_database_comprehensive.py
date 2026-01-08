@@ -14,7 +14,8 @@ class TestDatabaseBasicOperations:
     def test_database_connection(self, db):
         """Test database connection is functional"""
         assert db is not None
-        assert hasattr(db, 'db')
+        assert hasattr(db, 'config')  # Database has config attribute
+        assert callable(db.add_document)  # Can add documents
     
     def test_document_insertion(self, db, sample_document):
         """Test inserting a document"""
