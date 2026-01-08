@@ -1,6 +1,7 @@
 """
 Email Receiver Module
 Ruft E-Mails via IMAP ab und extrahiert Anhänge (PDF/Bilder)
+Mit Advanced Parsing und Metadaten-Extraktion
 """
 
 import logging
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Dict
 import yaml
 from datetime import datetime
+from app.email_parser import EmailParser
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +38,7 @@ class EmailReceiver:
         self.email_config = self.config.get('email', {})
         self.upload_folder = self.config['system']['storage']['upload_folder']
         self.connection: Optional[imaplib.IMAP4_SSL] = None
+        self.parser = EmailParser()  # Advanced Email Parser
         
     def connect(self) -> bool:
         """
@@ -118,6 +121,48 @@ class EmailReceiver:
             self.disconnect()
             
         return saved_files
+    
+    def fetch_emails_with_metadata(self, limit: int = 10) -> List[Dict]:
+        """
+        Ruft Emails mit vollständigen Metadaten ab (ohne nur Anhänge)
+        
+        Args:
+            limit: Maximale Anzahl Emails zum Abrufen
+            
+        Returns:
+            Liste von Email-Dictionaries mit Metadaten
+        """
+        emails = []
+        
+        if not self.connect():
+            return []
+        
+        try:
+            self.connection.select('INBOX')
+            
+            # Suche nach ungelesenen Mails
+            status, messages = self.connection.search(None, 'UNSEEN')
+            
+            if status != 'OK' or not messages[0]:
+                logger.debug("Keine ungelesenen E-Mails gefunden")
+                return []
+            
+            msg_ids = messages[0].split()[-limit:]  # Neueste Emails
+            
+            for msg_id in msg_ids:
+                try:
+                    email_data = self._parse_email_full(msg_id)
+                    if email_data:
+                        emails.append(email_data)
+                except Exception as e:
+                    logger.error(f"Fehler beim Parsen von Email {msg_id.decode()}: {e}")
+            
+        except imaplib.IMAP4.error as e:
+            logger.error(f"IMAP Fehler: {e}")
+        finally:
+            self.disconnect()
+        
+        return emails
     
     def _process_email(self, msg_id: bytes) -> List[str]:
         """
@@ -241,3 +286,29 @@ class EmailReceiver:
             Dekodierter Dateiname
         """
         return self._decode_subject(filename)
+    
+    def _parse_email_full(self, msg_id: bytes) -> Optional[Dict]:
+        """
+        Parst eine Email mit vollständigen Informationen
+        
+        Args:
+            msg_id: IMAP Message ID
+            
+        Returns:
+            Dictionary mit allen Email-Daten oder None
+        """
+        try:
+            res, msg_data = self.connection.fetch(msg_id, '(RFC822)')
+            if res != 'OK':
+                return None
+            
+            email_body = msg_data[0][1]
+            
+            # Nutze Advanced Parser
+            parsed = self.parser.parse_email(email_body, self.upload_folder)
+            
+            return parsed
+        
+        except Exception as e:
+            logger.error(f"Fehler beim Parsen: {e}")
+            return None
