@@ -1,0 +1,110 @@
+# Production Dockerfile für OrganisationsAI
+# Mit erweiterten Security Features und Optimierungen
+
+# Stage 1: Builder mit allen Abhängigkeiten
+FROM python:3.11-slim as builder
+
+# Installiere Build-Abhängigkeiten
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    cmake \
+    pkg-config \
+    tesseract-ocr \
+    libtesseract-dev \
+    libleptonica-dev \
+    libsqlite3-dev \
+    libpq-dev \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Copy requirements
+COPY requirements.txt .
+
+# Installiere Python-Abhängigkeiten
+RUN pip install --no-cache-dir --user -r requirements.txt && \
+    pip install --no-cache-dir --user gunicorn[gevent]==21.2.0
+
+# Copy source code
+COPY . .
+
+# Build C/C++ extensions
+RUN python setup.py build_ext --inplace 2>&1 || true
+
+# Stage 2: Runtime-Image (minimal)
+FROM python:3.11-slim
+
+LABEL maintainer="OrganisationsAI <dev@organisationsai.local>"
+LABEL version="1.0"
+LABEL description="Intelligent Document Management System with OCR and AI"
+
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-deu \
+    tesseract-ocr-eng \
+    tesseract-ocr-fra \
+    poppler-utils \
+    imagemagick \
+    libsqlite3-0 \
+    libpq5 \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Security: Create non-root user mit minimalen Rechten
+RUN groupadd -r appgroup && \
+    useradd -r -g appgroup -u 1000 -m -s /sbin/nologin appuser
+
+WORKDIR /app
+
+# Copy Python packages from builder (mit korrektem Owner)
+COPY --from=builder --chown=appuser:appgroup /root/.local /home/appuser/.local
+
+# Copy application code (mit korrektem Owner)
+COPY --from=builder --chown=appuser:appgroup /build /app
+
+# Environment variables
+ENV PATH="/home/appuser/.local/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    FLASK_APP=app.server:create_app \
+    FLASK_ENV=production
+
+# Erstelle notwendige Verzeichnisse mit korrekten Rechten
+RUN mkdir -p /app/data/uploads \
+             /app/data/extracted \
+             /app/logs \
+             /app/backups \
+    && chown -R appuser:appgroup /app \
+    && chmod 750 /app/data /app/logs /app/backups
+
+# Sicherheit: Readonly filesystem wo möglich
+RUN chmod 555 /app/app
+
+# Wechsel zu Non-Root-User
+USER appuser
+
+# Expose Port
+EXPOSE 5001
+
+# Health check mit detaillierter Fehlermeldung
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:5001/health || exit 1
+
+# Start application mit Gunicorn für Production
+CMD ["gunicorn", \
+     "--bind", "0.0.0.0:5001", \
+     "--workers", "4", \
+     "--worker-class", "gevent", \
+     "--worker-connections", "1000", \
+     "--max-requests", "1000", \
+     "--max-requests-jitter", "50", \
+     "--timeout", "60", \
+     "--access-logfile", "/app/logs/access.log", \
+     "--error-logfile", "/app/logs/error.log", \
+     "--log-level", "info", \
+     "app.server:create_app()"]

@@ -1,0 +1,99 @@
+# Production-Grade Dockerfile mit Security Best Practices
+# Multi-stage build für minimale Image-Größe
+# Security hardening mit non-root user und minimal base image
+
+# ============================================================================
+# STAGE 1: Builder - Kompiliere Python-Dependencies
+# ============================================================================
+FROM python:3.13-slim as builder
+
+WORKDIR /build
+
+# Installiere Build-Tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    gcc \
+    g++ \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Kopiere Requirements
+COPY requirements.txt .
+
+# Kompiliere Python Wheels (schneller beim Deploy)
+RUN pip install --user --no-cache-dir --compile -r requirements.txt
+
+# ============================================================================
+# STAGE 2: Runtime - Minimales Production Image
+# ============================================================================
+FROM python:3.13-slim
+
+# Setze Umgebungsvariablen
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    FLASK_ENV=production \
+    FLASK_DEBUG=0
+
+# Installiere nur Runtime Dependencies (nicht build tools!)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    libtesseract-dev \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    ghostscript \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Erstelle non-root Benutzer für Security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Setze Arbeitsverzeichnis
+WORKDIR /app
+
+# Kopiere kompilierte Dependencies aus Builder
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
+
+# Kopiere Applikation
+COPY --chown=appuser:appuser . .
+
+# Erstelle notwendige Verzeichnisse mit korrekten Permissions
+RUN mkdir -p /app/data /app/logs /app/uploads && \
+    chown -R appuser:appuser /app/data /app/logs /app/uploads && \
+    chmod 755 /app/data /app/logs /app/uploads
+
+# Setze Python Path für installierte Packages
+ENV PATH=/home/appuser/.local/bin:$PATH \
+    PYTHONPATH=/app:$PYTHONPATH
+
+# Health Check - prüft ob App läuft
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+# Security: Wechsel zu non-root Benutzer (WICHTIG für Production!)
+USER appuser
+
+# Exponiere Port
+EXPOSE 5000
+
+# Starte Applikation mit Gunicorn (Production WSGI Server)
+CMD ["gunicorn", \
+     "--bind=0.0.0.0:5000", \
+     "--workers=4", \
+     "--worker-class=sync", \
+     "--worker-tmp-dir=/dev/shm", \
+     "--max-requests=1000", \
+     "--max-requests-jitter=100", \
+     "--timeout=60", \
+     "--access-logfile=-", \
+     "--error-logfile=-", \
+     "--log-level=info", \
+     "app.server:create_app()"]
+
+# Labels für Metadaten
+LABEL maintainer="OrganisationsAI Team" \
+      version="1.0" \
+      description="Production-grade OrganisationsAI with security hardening"
