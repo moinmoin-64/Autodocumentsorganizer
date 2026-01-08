@@ -62,27 +62,51 @@ def db(app):
     """
     # Use the database from the app context
     from app.database import Database
+    import sqlite3
     
     # Create fresh database instance for test
     db_instance = Database(app.config)
     
+    # Get database path from config
+    db_path = app.config.get('DATABASE_PATH', 'data/database.db')
+    
     # Return the database for the test
     yield db_instance
     
-    # Cleanup after test is optional - database is ephemeral anyway
+    # Cleanup after test - delete all records to ensure isolation
+    try:
+        # Delete all documents to clear test data
+        try:
+            db_instance.db.execute("DELETE FROM documents")
+            db_instance.db.commit()
+        except:
+            pass
+        
+        # Close connection
+        db_instance.close()
+    except Exception as e:
+        pass  # Silently fail cleanup
 
 
 @pytest.fixture
-def sample_document():
-    """Sample document data"""
+def sample_document(db):
+    """Sample document data - unique per test"""
+    import uuid
+    import time
+    
+    # Generate unique filepath to avoid UNIQUE constraint conflicts
+    unique_id = str(uuid.uuid4())[:8]
+    timestamp = int(time.time() * 1000)
+    
     return {
-        'filename': 'test.pdf',
-        'filepath': '/tmp/test.pdf',
+        'filename': f'test_{unique_id}.pdf',
+        'filepath': f'/tmp/test_{timestamp}_{unique_id}.pdf',
         'category': 'Invoice',
         'subcategory': 'Utilities',
-        'summary': 'Test invoice',
-        'keywords': ['test', 'invoice'],
-        'full_text': 'This is a test document',
+        'summary': f'Test invoice {unique_id}',
+        'keywords': ['test', 'invoice', unique_id],
+        'full_text': f'This is a test document {unique_id}',
         'amount': 99.99,
         'currency': 'EUR'
     }
+
