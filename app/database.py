@@ -146,11 +146,15 @@ class Database:
         offset: int = 0,
         year: Optional[int] = None
     ) -> List[dict]:
-        """Einfache Suche"""
+        """Einfache Suche (mit Eager Loading um N+1 zu vermeiden)"""
         try:
             with get_db() as session:
+                from sqlalchemy.orm import joinedload
+                
+                # Start mit Query
                 q = session.query(Document)
-
+                
+                # Apply filter conditions BEFORE eager loading
                 if category:
                     q = q.filter(Document.category == category)
 
@@ -161,8 +165,7 @@ class Database:
                     q = q.filter(Document.date_document <= end_date)
                     
                 if year:
-                    # SQLite specific or generic year filtering
-                    # extract('year', Document.date_document) == year
+                    # SQLite: Nutze strftime für Year-Filtering
                     q = q.filter(func.strftime('%Y', Document.date_document) == str(year))
 
                 if query:
@@ -173,15 +176,19 @@ class Database:
                         Document.keywords.ilike(search)
                     ))
 
-                q = q.order_by(desc(Document.date_added)).limit(limit).offset(offset)
+                # OPTIMIZED: Eager Loading to prevent N+1 queries
+                q = q.options(
+                    joinedload(Document.tags)
+                ).order_by(desc(Document.date_added)).limit(limit).offset(offset)
                 
                 results = []
                 for doc in q.all():
                     results.append(self._doc_to_dict(doc))
                 
+                logger.debug(f"Search returned {len(results)} documents")
                 return results
         except Exception as e:
-            logger.error(f"Fehler bei der Suche: {e}")
+            logger.error(f"Fehler bei der Suche: {e}", exc_info=True)
             return []
 
     def search_documents_advanced(

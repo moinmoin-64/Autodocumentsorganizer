@@ -51,39 +51,55 @@ class DocumentProcessor:
         # Tesseract Sprachen
         self.tesseract_lang = '+'.join(self.ocr_config['languages'])
         
-        # Image Preprocessor für bessere OCR-Genauigkeit
+        # Image Preprocessor für bessere OCR-Genauigkeit (nur 1x!)
+        self._init_image_preprocessor()
+
+    def _init_image_preprocessor(self):
+        """Initialisiert Image Preprocessor (Hilfsmethode)"""
         try:
             from app.image_preprocessor import ImagePreprocessor
             self.preprocessor = ImagePreprocessor()
             self.use_preprocessing = True
-            logger.info("Image Preprocessor aktiviert")
+            logger.info("[OK] Image Preprocessor aktiviert")
         except Exception as e:
-            logger.warning(f"Image Preprocessor nicht verfügbar: {e}")
-            self.preprocessor = None
-            self.use_preprocessing = False
-        
-        # Image Preprocessor für bessere OCR-Genauigkeit
-        try:
-            from app.image_preprocessor import ImagePreprocessor
-            self.preprocessor = ImagePreprocessor()
-            self.use_preprocessing = True
-            logger.info("Image Preprocessor aktiviert")
-        except Exception as e:
-            logger.warning(f"Image Preprocessor nicht verfügbar: {e}")
+            logger.warning(f"[WARNING] Image Preprocessor nicht verfügbar: {e}")
             self.preprocessor = None
             self.use_preprocessing = False
 
     def process_document(self, file_path: str) -> Dict:
         """
         Verarbeitet ein Dokument komplett
+        
+        Raises:
+            DocumentProcessingError: Bei kritischen Verarbeitungsfehlern
+            FileProcessingError: Bei File-Zugriffsproblemen
         """
+        from app.exceptions import DocumentProcessingError, FileProcessingError
+        
         start_time = datetime.now()
         try:
+            # Prüfe Datei-Existenz
+            from pathlib import Path
+            file_obj = Path(file_path)
+            if not file_obj.exists():
+                raise FileProcessingError(f"Datei nicht found: {file_path}")
+            
+            if not file_obj.is_file():
+                raise FileProcessingError(f"Pfad ist keine Datei: {file_path}")
+            
             with PROCESSING_DURATION_SECONDS.labels(stage='total').time():
                 return self._process_document_internal(file_path)
+                
+        except FileProcessingError:
+            # Re-raise unsere Custom Exception
+            raise
+        except DocumentProcessingError:
+            # Re-raise unsere Custom Exception
+            raise
         except Exception as e:
             DOCUMENT_PROCESSED_TOTAL.labels(status='error', category='unknown').inc()
-            raise e
+            logger.error(f"Unerwarteter Fehler bei {file_path}: {e}", exc_info=True)
+            raise DocumentProcessingError(f"Dokumentverarbeitung fehlgeschlagen: {str(e)}")
 
     def _process_document_internal(self, file_path: str) -> Dict:
         """

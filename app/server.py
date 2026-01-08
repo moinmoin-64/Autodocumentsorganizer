@@ -50,11 +50,6 @@ def create_app() -> Flask: # config_path als Argument entfernt
     """
     global global_config
     
-    # Lade Config - wird jetzt von init_app übernommen. global_config sollte hier gesetzt sein,
-    # wenn create_app nach init_app aufgerufen wird, oder wenn Defaults reichen.
-    # Für Tests laden wir die config in conftest.py in create_app().
-    # Ansonsten muss global_config extern gesetzt werden.
-
     app = Flask(__name__, static_folder='static', static_url_path='')
 
     # Flask-Login Manager Initialisierung
@@ -65,28 +60,41 @@ def create_app() -> Flask: # config_path als Argument entfernt
     # Setup Logging (early!)
     setup_logging(app) # Logger an App binden
 
-    # Setup Security (includes CORS & rate limiting)
-    # global_config['web'] muss hier verfügbar sein, um setup_security aufzurufen.
-    # Das bedeutet global_config muss _vor_ create_app() gesetzt werden, wenn es zur Laufzeit benötigt wird.
-    # Temporär: Direktes Laden der config hier, bis die Struktur besser ist.
-    # Wenn create_app wirklich eine Fabrik sein soll, sollte sie alle Abhängigkeiten bekommen.
-    
-    # Lade Config für create_app falls global_config noch nicht gesetzt ist
+    # Lade Config falls noch nicht geladen
     if global_config is None:
         try:
-            with open('config.yaml', 'r', encoding='utf-8') as f: # Default config
+            with open('config.yaml', 'r', encoding='utf-8') as f:
                 global_config = yaml.safe_load(f)
         except FileNotFoundError:
             logger.warning("config.yaml not found, using empty config. Some features may not work.")
-            global_config = {} # Leere Config im Fehlerfall
+            global_config = {}
         except (yaml.YAMLError, IOError) as e:
             logger.error(f"Error loading config: {e}")
             global_config = {}
     
+    # PRODUCTION: Config Validierung
+    environment = os.getenv('FLASK_ENV', 'development')
+    if environment == 'production':
+        from app.config_validator import validate_production_config
+        logger.info("Validiere Production-Konfiguration...")
+        if not validate_production_config(global_config):
+            logger.critical("Production-Konfiguration ungültig! App wird nicht gestartet.")
+            raise RuntimeError("Production-Konfiguration nicht sicher - siehe Errors oben")
+    
+    # Setup Security (includes CORS & rate limiting)
     limiter = setup_security(app)
 
     # Security Features
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', global_config['web'].get('secret_key', 'dev-key-change-me-in-production'))
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 
+        global_config.get('web', {}).get('secret_key', 'dev-key-change-me-in-production'))
+    
+    # Warnung für Standard-Secret-Key
+    if app.config['SECRET_KEY'] == 'dev-key-change-me-in-production':
+        if environment == 'production':
+            raise RuntimeError("SECRET_KEY nicht geändert! Für Production nicht geeignet.")
+        else:
+            logger.warning("[WARNING] Standard SECRET_KEY wird verwendet. Nicht für Production geeignet!")
+    
     csrf = CSRFProtect(app)
     
     # Init Auth (Setzt app.config['AUTH_USERS'] und registriert Handler)
