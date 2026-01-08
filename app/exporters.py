@@ -1,11 +1,12 @@
 """
 Data Exporter Module
-Exportiert Daten als Excel oder PDF
+Exportiert Daten als Excel, PDF oder CSV
 """
 
 import logging
 import pandas as pd
 import io
+import csv
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any
@@ -19,6 +20,14 @@ from reportlab.lib.styles import getSampleStyleSheet
 logger = logging.getLogger(__name__)
 
 class DataExporter:
+    """Exportiert Daten in verschiedene Formate"""
+    
+    # Wichtige Felder für den Export
+    EXPORT_FIELDS = [
+        'date_document', 'datum', 'filename', 'category', 
+        'amount', 'betrag', 'company', 'firma', 'from_email', 'subject'
+    ]
+    
     def __init__(self):
         pass
 
@@ -110,3 +119,135 @@ class DataExporter:
         except Exception as e:
             logger.error(f"PDF Export Fehler: {e}")
             raise
+
+    def export_to_csv(self, data: List[Dict], filename: str = "export.csv") -> io.BytesIO:
+        """
+        Exportiert Daten als CSV (für Knowledge-Base)
+        
+        Args:
+            data: Liste von Dokumenten
+            filename: Ausgabedateiname
+            
+        Returns:
+            BytesIO Object mit CSV-Daten
+        """
+        output = io.BytesIO()
+        
+        try:
+            # Wenn keine Daten, leere CSV zurückgeben
+            if not data:
+                return output
+            
+            # Bestimme Spalten aus Daten
+            all_keys = set()
+            for item in data:
+                all_keys.update(item.keys())
+            
+            # Sortiere Spalten (wichtige zuerst)
+            fieldnames = []
+            for field in self.EXPORT_FIELDS:
+                if field in all_keys:
+                    fieldnames.append(field)
+            
+            # Restliche Spalten
+            for field in sorted(all_keys):
+                if field not in fieldnames:
+                    fieldnames.append(field)
+            
+            # Schreibe CSV
+            text_wrapper = io.TextIOWrapper(output, encoding='utf-8', newline='')
+            writer = csv.DictWriter(text_wrapper, fieldnames=fieldnames)
+            
+            writer.writeheader()
+            for item in data:
+                # Konvertiere komplexe Datentypen zu Strings
+                row = {}
+                for key in fieldnames:
+                    value = item.get(key, '')
+                    if isinstance(value, (list, dict)):
+                        value = str(value)
+                    row[key] = value
+                writer.writerow(row)
+            
+            text_wrapper.flush()
+            output.seek(0)
+            
+            logger.info(f"✅ CSV Export erfolgreich: {len(data)} Zeilen")
+            return output
+            
+        except Exception as e:
+            logger.error(f"CSV Export Fehler: {e}")
+            raise
+    
+    def extract_knowledge(self, data: List[Dict]) -> Dict[str, Any]:
+        """
+        Extrahiert Wissensinformationen aus Dokumenten
+        
+        Args:
+            data: Liste von Dokumenten
+            
+        Returns:
+            Dict mit extrahierten Wissenselementen
+        """
+        try:
+            knowledge = {
+                'total_documents': len(data),
+                'categories': {},
+                'companies': {},
+                'total_amount': 0,
+                'date_range': {
+                    'earliest': None,
+                    'latest': None,
+                },
+                'subjects': [],
+                'extracted_at': datetime.now().isoformat(),
+            }
+            
+            for item in data:
+                # Kategorien zählen
+                category = item.get('category', 'Unbekannt')
+                knowledge['categories'][category] = knowledge['categories'].get(category, 0) + 1
+                
+                # Firmen/Kontakte sammeln
+                company = item.get('company') or item.get('firma', '')
+                if company:
+                    knowledge['companies'][company] = knowledge['companies'].get(company, 0) + 1
+                
+                # Beträge summieren
+                amount = item.get('amount') or item.get('betrag', 0)
+                if isinstance(amount, (int, float)):
+                    knowledge['total_amount'] += amount
+                
+                # Datum tracking
+                date_str = item.get('date_document') or item.get('datum', '')
+                if date_str:
+                    if not knowledge['date_range']['earliest'] or date_str < knowledge['date_range']['earliest']:
+                        knowledge['date_range']['earliest'] = date_str
+                    if not knowledge['date_range']['latest'] or date_str > knowledge['date_range']['latest']:
+                        knowledge['date_range']['latest'] = date_str
+                
+                # Subjekte sammeln
+                subject = item.get('subject') or item.get('betreff', '')
+                if subject:
+                    knowledge['subjects'].append(subject)
+            
+            # Top Kategorien
+            knowledge['top_categories'] = sorted(
+                knowledge['categories'].items(),
+                key=lambda x: x[1],
+                reverse=True
+            )[:5]
+            
+            # Top Firmen
+            knowledge['top_companies'] = sorted(
+                knowledge['companies'].items(),
+                key=lambda x: x[1],
+                reverse=True
+            )[:5]
+            
+            logger.info(f"✅ Wissen extrahiert: {knowledge['total_documents']} Dokumente, {len(knowledge['companies'])} Firmen")
+            return knowledge
+            
+        except Exception as e:
+            logger.error(f"Knowledge Extraction Fehler: {e}")
+            return {'error': str(e)}
