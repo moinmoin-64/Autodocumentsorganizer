@@ -1,0 +1,375 @@
+name: Production CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ============================================================================
+  # Code Quality & Testing
+  # ============================================================================
+  
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+    
+    - name: Lint with pylint
+      run: pylint app/ --exit-zero --output-format=colorized
+    
+    - name: Check formatting with black
+      run: black --check app/ tests/
+    
+    - name: Type checking with mypy
+      run: mypy app/ --ignore-missing-imports
+    
+    - name: Security check with bandit
+      run: bandit -r app/ -f json -o bandit-report.json || true
+    
+    - name: Upload bandit report
+      uses: actions/upload-artifact@v3
+      with:
+        name: bandit-report
+        path: bandit-report.json
+
+  # ============================================================================
+  # Unit & Integration Tests
+  # ============================================================================
+  
+  tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+    
+    - name: Run unit tests
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379/0
+        FLASK_ENV: testing
+      run: |
+        pytest tests/ -v --cov=app --cov-report=xml --cov-report=html
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+    
+    - name: Archive coverage reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: htmlcov/
+
+  # ============================================================================
+  # Security Scanning
+  # ============================================================================
+  
+  security:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+    
+    - name: Upload Trivy results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  # ============================================================================
+  # Build & Push Docker Image
+  # ============================================================================
+  
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [tests, security]
+    if: github.event_name == 'push'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v4
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha
+    
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: ${{ github.event_name != 'pull_request' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+        cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  # ============================================================================
+  # Performance Benchmarking
+  # ============================================================================
+  
+  benchmark:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    needs: tests
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+    
+    - name: Run benchmarks
+      run: python benchmark_suite.py
+    
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v3
+      with:
+        name: benchmark-results
+        path: benchmark_results.json
+
+  # ============================================================================
+  # Deploy to Development
+  # ============================================================================
+  
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    
+    environment: development
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        aws-region: eu-central-1
+    
+    - name: Update ECS task definition
+      run: |
+        aws ecs update-service \
+          --cluster organisationsai-dev \
+          --service organisationsai-dev \
+          --force-new-deployment
+    
+    - name: Notify Slack
+      if: always()
+      uses: slackapi/slack-github-action@v1.24.0
+      with:
+        webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+        payload: |
+          {
+            "text": "Development Deployment ${{ job.status }}",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Development Deployment ${{ job.status }}*\nBranch: develop\nCommit: ${{ github.sha }}"
+                }
+              }
+            ]
+          }
+
+  # ============================================================================
+  # Deploy to Production
+  # ============================================================================
+  
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    environment: production
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        aws-region: eu-central-1
+    
+    - name: Deploy Helm chart
+      run: |
+        helm repo add organisationsai https://charts.organisationsai.example.com
+        helm repo update
+        
+        helm upgrade --install organisationsai organisationsai/organisationsai \
+          --namespace organisationsai \
+          --values helm-values-prod.yaml \
+          --wait \
+          --timeout 5m
+    
+    - name: Verify deployment
+      run: |
+        kubectl rollout status deployment/organisationsai -n organisationsai --timeout=5m
+        kubectl run curl --image=curlimages/curl -i --rm --restart=Never -- \
+          curl -f http://organisationsai.organisationsai.svc.cluster.local/health
+    
+    - name: Run smoke tests
+      run: |
+        python -m pytest tests/smoke/ -v
+    
+    - name: Create deployment record
+      run: |
+        aws deploy put-deployment-info \
+          --deployment-id organisationsai-prod-${{ github.sha }} \
+          --deployment-status Succeeded
+    
+    - name: Notify Slack
+      if: always()
+      uses: slackapi/slack-github-action@v1.24.0
+      with:
+        webhook-url: ${{ secrets.SLACK_WEBHOOK }}
+        payload: |
+          {
+            "text": "Production Deployment ${{ job.status }}",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Production Deployment ${{ job.status }}*\nVersion: ${{ github.ref }}\nCommit: ${{ github.sha }}"
+                }
+              }
+            ]
+          }
+
+  # ============================================================================
+  # Post-Deployment Validation
+  # ============================================================================
+  
+  validate:
+    name: Post-Deployment Validation
+    runs-on: ubuntu-latest
+    needs: [deploy-dev, deploy-prod]
+    if: always()
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Run integration tests
+      run: python -m pytest tests/integration/ -v
+    
+    - name: Check health endpoints
+      run: |
+        curl -f http://localhost:5000/health || exit 1
+        curl -f http://localhost:5000/metrics || exit 1
+    
+    - name: Generate deployment report
+      run: |
+        echo "Deployment Report" > deployment-report.txt
+        echo "==================" >> deployment-report.txt
+        echo "Date: $(date)" >> deployment-report.txt
+        echo "Version: ${{ github.sha }}" >> deployment-report.txt
+        cat deployment-report.txt
+    
+    - name: Upload deployment report
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-report
+        path: deployment-report.txt
