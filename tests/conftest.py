@@ -49,6 +49,13 @@ def app():
 
 
 @pytest.fixture
+def test_config(app):
+    """Get test configuration from app"""
+    from app.server import global_config
+    return global_config
+
+
+@pytest.fixture
 def client(app):
     """Test client"""
     return app.test_client()
